@@ -89,7 +89,7 @@ WITH CHECK OPTION;
 
 ## 1、创建存储过程
 
-
+存储过程和函数的名字一般用小写单词和下划线连接：get_risk_factor
 
 ```sql
 DELIMITER $$
@@ -121,7 +121,7 @@ CALL get_invoices_with_balance();
 
 ## 2、带参数的存储过程
 
-单个参数的存储过程
+### 2.1 单个参数的存储过程
 
 ```sql
 DROP PROCEDURE IF EXISTS get_clients_by_state;
@@ -151,7 +151,7 @@ DELIMITER ;
 CALL get_invoices_by_client(1);
 ```
 
-带默认参数的存储过程
+### 2.2 带默认参数的存储过程
 
 ```sql
 -- 当传入NULL参数查询’CA‘的clients
@@ -213,6 +213,350 @@ CALL get_payments(1,1);
 CALL get_payments(1,NULL); -- client_id 1,3,5
 ```
 
+### 2.3 参数验证（防止直接操作数据库，逃脱代码验证）
+
+```sql
+DROP PROCEDURE IF EXISTS make_payments;
+
+DELIMITER $$
+CREATE PROCEDURE make_payments(
+	invoice_id INT,
+	payment_amount DECIMAL(9,2),
+	pamyent_date DATE
+)
+BEGIN 
+	IF payment_amount <= 0 THEN
+		SIGNAL SQLSTATE '22003' SET MESSAGE_TEXT = 'Invalid payment amount';
+		-- throw exception
+	END IF;
+	UPDATE invoices i
+	SET i.payment_total = payment_amount,
+			i.payment_date = pamyent_date
+	WHERE 
+		i.invoice_id = invoice_id;
+END$$
+DELIMITER ;
+CALL make_payments(2,-100,'2019-01-01');
+```
+
+<img src="../TyporaImgs/image-20231101203346698.png" alt="image-20231101203346698" style="zoom:80%;" />
+
+### 2.4 输出参数
+
+
+
+```sql
+-- 输出参数
+DROP PROCEDURE IF EXISTS get_unpaied_invoices_for_client;
+DELIMITER $$
+CREATE PROCEDURE get_unpaied_invoices_for_client(
+	client_id INT,
+	OUT invoices_count INT,
+	OUT invoices_total DECIMAL(9,2)
+)
+BEGIN 
+	SELECT COUNT(*),SUM(invoice_total)
+	INTO invoices_count,invoices_total -- 输出参数的赋值
+	FROM invoices i
+	WHERE i.client_id = client_id AND payment_total = 0;
+END$$
+DELIMITER ;
+
+-- define varible
+SET @invoices_count = 0;
+SET @invoices_total = 0;
+CALL get_unpaied_invoices_for_client(3,@invoices_count,@invoices_total);
+SELECT @invoices_count,@invoices_total;
+```
+
+<img src="../TyporaImgs/image-20231101203325053.png" alt="image-20231101203325053" style="zoom:80%;" />
+
+
+
+## 3、变量
+
+```sql
+-- define varible
+-- user or session variables(通过@声明的变量)
+SET @invoices_count = 0;
+SET @invoices_total = 0;
+CALL get_unpaied_invoices_for_client(3,@invoices_count,@invoices_total);
+SELECT @invoices_count,@invoices_total;
+
+-- Local variables(通过DECLARE声明的变量)
+DROP PROCEDURE IF EXISTS get_risk_factor;
+DELIMITER $$
+CREATE PROCEDURE get_risk_factor()
+BEGIN 
+	DECLARE risk_factor DECIMAL(9,2) DEFAULT 0;
+	DECLARE invoices_total DECIMAL(9,2);
+	DECLARE invoices_count INT;
+	
+	SELECT COUNT(*),SUM(invoice_total)
+	INTO invoices_count,invoices_total -- 输出参数的赋值
+	FROM invoices i;
+	
+	SET risk_factor = invoices_total / invoices_count * 5;
+	SELECT risk_factor;
+END$$
+DELIMITER ;
+
+CALL get_risk_factor(); -- 777.75
+```
+
+
+
+## 4、函数
+
+函数只能返回单一的值，存储过程可以返回多行的结果集
+
+```sql
+-- 函数：根据client_id 求 risk_factor（实时根据invoices表的变化更新）
+DROP FUNCTION IF EXISTS get_risk_factor_for_client;
+DELIMITER $$
+CREATE FUNCTION get_risk_factor_for_client(client_id INT)
+RETURNS INTEGER -- 标识返回值类型
+-- DETERMINISTIC -- 输入相同则输出相同
+READS SQL DATA -- 标识 函数中会使用到SELECT用来读取数据
+-- MODIFIES SQL DATA-- 标识 函数中会修改（插入、更新、删除）数据
+BEGIN 
+	DECLARE risk_factor DECIMAL(9,2) DEFAULT 0;
+	DECLARE invoices_total DECIMAL(9,2);
+	DECLARE invoices_count INT;
+	
+	SELECT COUNT(*),SUM(invoice_total)
+	INTO invoices_count,invoices_total -- 输出参数的赋值
+	FROM invoices i
+	WHERE i.client_id = client_id;
+	
+	SET risk_factor = invoices_total / invoices_count * 5;
+	RETURN	IFNULL(risk_factor,0); -- 函数返回值
+END$$
+DELIMITER ;
+
+SELECT 
+	client_id,
+	name,
+	get_risk_factor_for_client(client_id) AS risk_factor
+FROM clients
+```
+
+<img src="../TyporaImgs/image-20231102081519339.png" alt="image-20231102081519339" style="zoom:80%;" />
+
+
+
+
+
+
+
+# 第九章 TRIGGER 触发器
+
+触发器是在插入更新和删除语句前后自动执行的一堆SQL代码
+
+## 1、创建触发器
+
+```sql
+DELIMITER $$
+CREATE TRIGGER payments_after_insert
+	AFTER INSERT ON payments
+	FOR EACH ROW
+BEGIN
+	UPDATE invoices
+	SET payment_total = payment_total + NEW.amount
+	WHERE invoice_id = NEW.invoice_id;
+END $$
+DELIMITER ;
+
+SELECT * from invoices;
+
+INSERT INTO payments
+VALUES(DEFAULT,5,3,'2019-01-01',10,1);
+
+
+-- Create a trigger that gets fired when we delete a payment.
+DROP TRIGGER IF EXISTS payments_after_delete;
+DELIMITER $$
+CREATE TRIGGER payments_after_delete
+	AFTER DELETE ON payments
+	FOR EACH ROW
+BEGIN
+	UPDATE invoices
+	SET payment_total = payment_total - OLD.amount
+	WHERE invoice_id = OLD.invoice_id;
+END $$
+DELIMITER ;
+
+SELECT * from payments;
+
+DELETE FROM payments
+WHERE payment_id = 11;
+
+-- 根据触发器名查看触发器
+SHOW TRIGGERS LIKE 'payments%';
+```
+
+
+
+## 2、使用能触发器审计
+
+每次新增和删除时，都将操作的记录、操作、操作时间记录到audit表
+
+```sql
+-- 创建audit表
+USE sql invoicing;
+CREATE TABLE payments_audit
+(
+	client_id INT NOT NULL,
+	date DATE NOT NULL,
+	amount DECIMAL(9,2) NOT NULL,
+	action_type VARCHAR(50) NOT NULL,
+	action_date DATETIME NOT NULL
+)
+-- 新增触发器
+DROP TRIGGER IF EXISTS payments_after_insert;
+DELIMITER $$
+CREATE TRIGGER payments_after_insert
+	AFTER INSERT ON payments
+	FOR EACH ROW
+BEGIN
+	UPDATE invoices
+	SET payment_total = payment_total + NEW.amount
+	WHERE invoice_id = NEW.invoice_id;
+
+	INSERT INTO payments_audit  -- 记录操作
+	VALUES(NEW.client_id,NEW.date,NEW.amount,'Insert',NOW());
+END $$
+DELIMITER ;
+
+-- 删除触发器
+DROP TRIGGER IF EXISTS payments_after_delete;
+DELIMITER $$
+CREATE TRIGGER payments_after_delete
+	AFTER DELETE ON payments
+	FOR EACH ROW
+BEGIN
+	UPDATE invoices
+	SET payment_total = payment_total - OLD.amount
+	WHERE invoice_id = OLD.invoice_id;
+	
+	INSERT INTO payments_audit  -- 记录操作
+	VALUES(OLD.client_id,OLD.date,OLD.amount,'Delete',NOW());
+END $$
+DELIMITER ;
+
+-- 新增
+INSERT INTO payments
+VALUES(DEFAULT,5,3,'2019-01-01',10,1);
+-- 删除
+DELETE FROM payments
+WHERE payment_id = 15;
+-- 验证
+SELECT * FROM payments;
+SELECT * FROM payments_audit;
+```
+
+## 3、事件
+
+事件是根据计划执行的任务或一堆SQL代码，比如每天早上十点或者每月一次 诸如此类，自动化数据库维护任务。我们首先要打开MySQL事件调度器
+
+```sql
+SHOW VARIABLES LIKE 'event%';
+SET GLOBAL event_scheduler = ON;
+
+DROP EVENT IF EXISTS yearly_delete_stale_audit_rows;
+DELIMITER $$
+CREATE EVENT yearly_delete_stale_audit_rows
+ON SCHEDULE 
+	-- AT '2019-05-01'
+	EVERY 1 HOUR STARTS '2019-05-01' ENDS '2029-05-01'
+DO BEGIN
+	DELETE FROM payments_audit
+	WHERE action_date < NOW() - INTERVAL 1 YEAR;
+-- 	action_date < DATESUB(NOW() ,INTERVAL 1 YEAR)
+END $$
+DELIMITER ;
+```
+
+## 4、查看、删除、修改事件
+
+```sql
+-- 查看、删除、编辑事件
+SHOW EVENTS LIKE 'yearly%';
+
+ALTER EVENT yearly_delete_stale_audit_rows DISABLE; -- ENABLE
+
+DELIMITER $$
+ALTER EVENT yearly_delete_stale_audit_rows
+ON SCHEDULE 
+	-- AT '2019-05-01'
+	EVERY 1 HOUR STARTS '2019-05-01' ENDS '2029-05-01'
+DO BEGIN
+	DELETE FROM payments_audit
+	WHERE action_date < NOW() - INTERVAL 1 YEAR;
+-- 	action_date < DATESUB(NOW() ,INTERVAL 1 YEAR)
+END $$
+DELIMITER ;
+```
+
+
+
+
+
+# 第十章事务和并发
+
+
+
+## 1、创建事务
+
+
+
+
+
+
+
+## 2、并发和锁定
+
+
+
+
+
+## 3、并发问题
+
+
+
+
+
+## 4、事务隔离
+
+
+
+
+
+## 5、隔离级别
+
+
+
+### 5.1 READ UNCOMMITTED
+
+
+
+
+
+### 5.2 READ COMMITTED
+
+
+
+
+
+### 5.3 REPEATABLE READ
+
+
+
+### 5.4 SERIALIZABLE
+
+
+
+## 6、Deadlock 死锁
 
 
 
@@ -228,44 +572,11 @@ CALL get_payments(1,NULL); -- client_id 1,3,5
 
 
 
+周四：辣椒炒肉  炒河粉
 
+周五：青菜+香菜+芋头+年糕+丸子+羊肉  炒河粉
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-周三：腊肉+青菜 玉米面条
-
-周四：辣椒炒肉 青菜+香菜+芋头+年糕+丸子+羊肉 
-
-周五：番茄牛腩（香菜根+芋头） 辣椒炒肉
-
-周六：番茄牛腩 
+周六：炖牛肉（番茄+芋头+香菜）
 
 
 

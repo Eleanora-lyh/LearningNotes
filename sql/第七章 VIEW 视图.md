@@ -504,27 +504,70 @@ DELIMITER ;
 
 # 第十章事务和并发
 
-
+你们都了解了事务是一组代表单个工作单元的SQL语句
 
 ## 1、创建事务
 
+包裹在事务中的每条语句都执行成功才会将修改提交到数据库。
+
+```sql
+USE sql_store;
+
+START TRANSACTION;
+
+INSERT INTO orders (customer_id,order_date,status)
+VALUES (1,'2019-01-01',1);
+
+INSERT INTO order_items
+VALUES (LAST_INSERT_ID(),1,1,1);
+
+COMMIT;
+-- ROLLBACK;
+
+SELECT * FROM orders;
+SELECT * FROM order_items;
+
+```
 
 
 
+默认情况下，执行的每一条语句都被一个事务包装的，如果运行成功就会提交事务，更新数据库。
 
+<img src="../TyporaImgs/image-20231102222440139.png" alt="image-20231102222440139" style="zoom:67%;" />
 
+## 2、Concurrency and Locking 并发和锁定
 
-## 2、并发和锁定
+会存在有两个以及更多的用户同时访问相同的数据的情况，这就是我们所说的“并发”，当一个用户修改其他用户正在检索或修改的数据时，并发可能会成为一个问题。
 
+![image-20231102224006645](../TyporaImgs/image-20231102224006645.png)
 
+一个事务操作时会给这些行上锁，这个锁防止其他事务修改这些行，直到第一个事务完成会回滚。
 
+## 3、Concurrency Problems 并发问题
 
+### 3.1 Lost Update 丢失更新
 
-## 3、并发问题
+<img src="../TyporaImgs/image-20231102224340303.png" alt="image-20231102224340303" style="zoom: 35%;" />
 
+### 3.2 Dirty Reads 脏读
 
+脏读就是当一个事务读取了尚未被提交的数据（READ COMMITTED处理）
 
+<img src="../TyporaImgs/image-20231102224638420.png" alt="image-20231102224638420" style="zoom:35%;" />
 
+### 3.3 Non-repeating Reads 不可重复读
+
+你读取了某个数据两次，并得到了不同的结果怎么办?（REPEATABLE READ只会读取第一次的snipshot）
+
+ <img src="../TyporaImgs/image-20231102225126662.png" alt="image-20231102225126662" style="zoom:35%;" />
+
+### 3.4 Phantom Reads 幻读
+
+在执行查询后（未提交）才添加、更新、删除的数据（SERIALIZABLE）
+
+如果在查询过中的结果会被其他事务的操作影响，那么查询的事务必须等他们完成；也就是事务的执行属性必须是一个序列，为操作提供了最大的确定性。（影响性能和扩展性）
+
+<img src="../TyporaImgs/image-20231102225552709.png" alt="image-20231102225552709" style="zoom:35%;" />
 
 ## 4、事务隔离
 

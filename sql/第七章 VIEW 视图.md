@@ -545,9 +545,36 @@ SELECT * FROM order_items;
 
 ## 3、Concurrency Problems 并发问题
 
-### 3.1 Lost Update 丢失更新
+### 3.1 Lost Update 丢失更新 （READ UNCOMMITTED）
 
 <img src="../TyporaImgs/image-20231102224340303.png" alt="image-20231102224340303" style="zoom: 35%;" />
+
+在隔离界别为READ UNCOMMITTED状态下，会遇到所有的并发问题:
+
+开启一个新窗口作为一个session A
+
+```sql
+-- READ UNCOMMITTED
+USE sql_store;
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED; -- 01 存在dirty read
+
+SELECT points FROM customers -- 04
+WHERE customer_id= 1;
+
+```
+
+另外一个窗口作为session B
+
+```sql
+USE sql_store;
+START TRANSACTION; -- 02
+	UPDATE customers -- 03
+	SET points = points + 10
+	WHERE customer_id = 1; -- 原来有 2273 points -> 2293
+ROLLBACK; -- 05
+```
+
+
 
 ### 3.2 Dirty Reads 脏读
 
@@ -555,11 +582,73 @@ SELECT * FROM order_items;
 
 <img src="../TyporaImgs/image-20231102224638420.png" alt="image-20231102224638420" style="zoom:35%;" />
 
-### 3.3 Non-repeating Reads 不可重复读
+开启一个新窗口作为一个session A
+
+```sql
+-- READ UNCOMMITTED
+USE sql_store;
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED; -- 01 存在dirty read
+
+SELECT points FROM customers -- 04
+WHERE customer_id= 1;
+
+```
+
+另外一个窗口作为session B
+
+```sql
+USE sql_store;
+START TRANSACTION; -- 02
+	UPDATE customers -- 03
+	SET points = points + 10
+	WHERE customer_id = 1; -- 原来有 2273 points -> 2293
+ROLLBACK; -- 05
+```
+
+READ COMMITTED隔离级别有 不可重复读 的问题
+
+### 3.3 Non-repeating Reads 不可重复读（默认）
 
 你读取了某个数据两次，并得到了不同的结果怎么办?（REPEATABLE READ只会读取第一次的snipshot）
 
  <img src="../TyporaImgs/image-20231102225126662.png" alt="image-20231102225126662" style="zoom:35%;" />
+
+不可重复读问题复现：开启一个新窗口作为一个session A
+
+```sql
+-- READ COMMITTED
+USE sql_store;
+SET TRANSACTION ISOLATION LEVEL READ COMMITTED; -- 01 不存在dirty read,存在 non-repeating read
+START TRANSACTION; -- 02
+SELECT points FROM customers WHERE customer_id= 1; -- 03 读了第一条后提交了其他事务
+SELECT points FROM customers WHERE customer_id= 1;-- 07 第二次读与第一次不同
+COMMIT;
+```
+
+另外一个窗口作为session B
+
+```sql
+USE sql_store;
+START TRANSACTION; -- 04
+	UPDATE customers -- 05
+	SET points = points + 10
+	WHERE customer_id = 1; -- 原来有 2273 points -> 2293
+COMMIT; -- 06
+ROLLBACK;
+-- SELECT * FROM customers;
+```
+
+将 session A 的隔离级别设置为 REPEATABLE READ 即可解决
+
+```sql
+-- REPEATABLE READ
+USE sql_store;
+SET TRANSACTION ISOLATION LEVEL REPEATABLE READ; -- 不存在dirty read,不存在 non-repeating read
+START TRANSACTION;
+SELECT points FROM customers WHERE customer_id= 1;
+SELECT points FROM customers WHERE customer_id= 1;
+COMMIT;
+```
 
 ### 3.4 Phantom Reads 幻读
 
@@ -569,57 +658,67 @@ SELECT * FROM order_items;
 
 <img src="../TyporaImgs/image-20231102225552709.png" alt="image-20231102225552709" style="zoom:35%;" />
 
-## 4、事务隔离
+幻读问题复现：Session A
+
+```sql
+SET TRANSACTION ISOLATION LEVEL REPEATABLE READ; -- 01不存在dirty read,不存在 non-repeating read,存在幻读
+START TRANSACTION; -- 02
+SELECT * FROM customers WHERE state= 'VA'; -- 03  07 sessionB已经提交了数据，但是sessionA未读出来
+COMMIT;
+```
+
+Session B:
+
+```sql
+-- 锁和并发
+USE sql_store;
+START TRANSACTION; -- 04
+	UPDATE customers -- 05
+	SET state = 'VA' 
+	WHERE customer_id = 1;
+COMMIT; -- 06
+```
+
+将 session A 的隔离级别设置为 SERIALIZABLE 即可解决
+
+### 3.5 设置隔离级别 
+
+```sql
+-- 并发问题
+SHOW variables like 'transaction_isolation' -- REPEATABLE-READ
+SET TRANSACTION ISOLATION LEVEL SERIALIZABLE; -- 设置下一个会话级别
+SET SESSION TRANSACTION ISOLATION LEVEL SERIALIZABLE; -- 设置当前以及下一个会话级别
+SET GLOBAL TRANSACTION ISOLATION LEVEL SERIALIZABLE;-- 设置所有的会话级别
+```
 
 
 
 
 
-## 5、隔离级别
+## 4、Deadlock 死锁
 
+用两个session模拟死锁，SessionA,SessionB
 
+```sql
+USE sql_store; -- 01
 
-### 5.1 READ UNCOMMITTED
+START TRANSACTION;-- 02
+UPDATE customers SET state = 'VA' WHERE customer_id = 1;-- 03
+UPDATE orders SET status = 1 WHERE order_id = 1;-- 07 死锁
+COMMIT;
 
+```
 
+sessionA修改state时，把该行上锁；sessionB修改status时，把该行上锁；
 
+当A想修改status时发现B占用中，B想修改state时发现A占用中
 
+```sql
+USE sql_store;-- 04
 
-### 5.2 READ COMMITTED
-
-
-
-
-
-### 5.3 REPEATABLE READ
-
-
-
-### 5.4 SERIALIZABLE
-
-
-
-## 6、Deadlock 死锁
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-周四：辣椒炒肉  炒河粉
-
-周五：青菜+香菜+芋头+年糕+丸子+羊肉  炒河粉
-
-周六：炖牛肉（番茄+芋头+香菜）
-
-
+START TRANSACTION;-- 05
+UPDATE orders SET status = 1 WHERE order_id = 1;-- 06
+UPDATE customers SET state = 'VA' WHERE customer_id = 1;
+COMMIT;
+```
 

@@ -91,9 +91,182 @@ namespace ConsoleApp1
 //new DelegateTest().AnonymousFunc();
 ```
 
-
-
-
-
 ## 3、lambda表达式
+
+=> 读作 goes to，delegate委托实例的声明可以转为lambda表达式
+
+（1）delegate变=>；（2）无返回值，且方法体只有一行，省略 { } （3）有返回值，方法体中只有一行代码，省略 { } 以及return；（4）如果只有一个参数，参数的()可以省略
+
+```C#
+namespace ConsoleApp1
+{
+    delegate void D1(); //1、声明一个返回类型为void，参数为空的委托类型，D1
+    public class DelegateTest
+    {
+        /// <summary>
+        /// 【三】测试lambda表达式
+        /// </summary>
+        public void LambdaFunc()
+        {
+            Action a1 = delegate () 
+            {
+                Console.WriteLine("this is an anonymous function without parameters and return value");
+            };
+            //delegate变=>,省略{}
+            Action a11 = () => Console.WriteLine("this is an anonymous function without parameters and return value");
+            
+            Action<int, string> a2 = (int a, string b) =>//delegate变=>
+                Console.WriteLine("this is an anonymous function with int and string parameters and no return value" + a + b);
+            Action<int, string> a22 = (a, b) =>//delegate变=>,参数的类型可省略
+                Console.WriteLine("this is an anonymous function with int and string parameters and no return value" + a + b);
+            
+            //delegate变=>,参数的类型可省略{} return
+            Func<int, int, string> f1 = (a, b) => (a + b).ToString();
+            f1(1,2);
+        }
+    }
+}
+```
+
+## 4、委托-》匿名方法-》lambda表达式
+
+```C#
+namespace ConsoleApp1
+{
+    delegate string D2(int i, int j); 
+    public class DelegateTest
+    {
+         public string Func2(int i, int j)
+        {
+            return (i + j).ToString();
+        }
+        /// <summary>
+        /// 【四】总结
+        /// </summary>
+        public void Sumary()
+        {
+            //委托
+            D2 f1 = Func2;
+            Console.WriteLine(f1(1, 2));
+
+            //匿名函数
+            Func<int, int, string> f2 = delegate (int a, int b)
+            {
+                return (a + b).ToString();
+            };
+            Console.WriteLine(f2(1, 2));
+
+            //lambda表达式
+            Func<int, int, string> f3 = (a, b) => (a + b).ToString();
+            Console.WriteLine(f3(1, 2));
+        }
+    }
+}
+
+//new DelegateTest().Sumary();
+```
+
+## 5、手动实现Linq
+
+Where方法会遍历集合中每个元素，对于每个元素都调用lambda表达式，判断是否为true，如果为true则将次元度放到返回的集合中。
+
+```C#
+namespace ConsoleApp1
+{
+    public class _02Linq
+    {
+        public void LinqSimulation()
+        {
+            int[] nums = new int[] { 1,5,44,81,4,45};//数组本身是没有Where方法的，使用System.Linq的拓展方法
+            //IEnumerable<int> res = nums.Where(x => x > 10);
+            //var res = MyWhere1(nums, i => i > 10);
+            var res = MyWhere2(nums, i => i > 10);
+            foreach (int x in res)
+            {
+                Console.WriteLine(x);
+            }
+        }
+        /// <summary>
+        /// 手动实现where方法
+        /// </summary>
+        /// <param name="items">待处理的数组</param>
+        /// <param name="f">过滤函数</param>
+        /// <returns>对数组中每个元素都执行过滤函数，为true则计入结果</returns>
+        static IEnumerable<int> MyWhere1(IEnumerable<int> items,Func<int,bool>f)
+        {
+            var res = new List<int>();
+            foreach (int i in items)
+            {
+                if (f(i))
+                {
+                    res.Add(i);
+                }
+            }
+            return res;
+        }
+        /// <summary>
+        /// 手动实现where方法2
+        /// </summary>
+        /// <param name="items">待处理的数组</param>
+        /// <param name="f">过滤函数</param>
+        /// <returns>对数组中每个元素都执行过滤函数，为true则计入结果</returns>
+        static IEnumerable<int> MyWhere2(IEnumerable<int> items, Func<int, bool> f)
+        {
+            foreach (int i in items)
+            {
+                if (f(i))
+                {
+                    Console.WriteLine("Where2 " + i);
+                    yield return i; //边处理边输出，效率更高
+                }
+            }
+        }
+    }
+}
+```
+
+## 6、var类型推断
+
+与JavaScript中的var不同，JavaScript中var是动态类型，可以 ```var i= 5; i=“abc”```，但在C#中不可以。编译后会将var变成相应的类型。匿名类型+var 是var发挥作用的地方
+
+```C#
+namespace ConsoleApp1
+{
+    public class _02Linq
+    {
+        public void LinqTest()
+        {
+            List<Employee> list = new List<Employee>();
+            list.Add(new Employee { id = 1, Name = "jerry", Age = 28, Gender = true, Salary = 5000 });
+            list.Add(new Employee { id = 2, Name = "jim", Age = 33, Gender = true, Salary = 3000 });
+            list.Add(new Employee { id = 3, Name = "lily", Age = 35, Gender = false, Salary = 9000 });
+            list.Add(new Employee { id = 4, Name = "lucy", Age = 16, Gender = false, Salary = 2000 });
+            list.Add(new Employee { id = 5, Name = "kimi", Age = 25, Gender = true, Salary = 1000 });
+            list.Add(new Employee { id = 6, Name = "nancy", Age = 35, Gender = false, Salary = 8000 });
+            list.Add(new Employee { id = 7, Name = "zack", Age = 35, Gender = true, Salary = 8500 });
+            list.Add(new Employee { id = 8, Name = "jack", Age = 33, Gender = true, Salary = 8000 });
+            list.Where(x => x.Age > 30);
+            Console.WriteLine(list.Count());//集合的条数
+            Console.WriteLine(list.Count(e => e.Age > 20 && e.Salary > 8000));//集合内符合条件的条数
+            Console.WriteLine(list.Any()); //集合中是否有数据
+            Console.WriteLine(list.Any(e => e.Salary < 8000));//集合中是否至少有一条满足条件
+            //count和any都能判断集合中是否存在满足条件的数据，但是Any效率高
+        }
+
+        public class Employee
+        {
+            public long id { get; set; }
+            public string Name { get; set; }//姓名
+            public int Age { get; set; }//年龄
+            public bool Gender { get; set; }//性别
+            public int Salary { get; set; }//月薪
+            public override string ToString()
+            {
+                return $"id={id},Name={Name},Age={Age},Gender={Gender},Salary={Salary}";
+            }
+        }
+
+    }
+}
+```
 

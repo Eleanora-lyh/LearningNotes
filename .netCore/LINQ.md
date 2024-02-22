@@ -166,7 +166,9 @@ namespace ConsoleApp1
 //new DelegateTest().Sumary();
 ```
 
-## 5、手动实现Linq
+## 5、Linq
+
+### 5.1 手动实现Linq
 
 Where方法会遍历集合中每个元素，对于每个元素都调用lambda表达式，判断是否为true，如果为true则将次元度放到返回的集合中。
 
@@ -225,7 +227,7 @@ namespace ConsoleApp1
 }
 ```
 
-## 6、var类型推断
+### 5.2 Any()、Count()
 
 与JavaScript中的var不同，JavaScript中var是动态类型，可以 ```var i= 5; i=“abc”```，但在C#中不可以。编译后会将var变成相应的类型。匿名类型+var 是var发挥作用的地方
 
@@ -269,4 +271,92 @@ namespace ConsoleApp1
     }
 }
 ```
+
+### 5.3 Single()、First()
+
+Single:有且只有一条满足要求的数据; 若不存在则报错【选择合适的方法，“防御性编程”】
+
+SingleOrDefault :最多只有一条满足要求的数据;若多条都满足则报错，若没有则返回null
+
+First :至少有一条，返回第一条; 若不存在则报错
+
+FirstOrDefault :返回第一条或者默认值;
+
+```C#
+Console.WriteLine(list.SingleOrDefault(x => x.Age > 30)); //System.InvalidOperationException:“Sequence contains more than one matching element”
+Console.WriteLine(list.FirstOrDefault(x => x.Age > 30)); //id=2,Name=jim,Age=33,Gender=True,Salary=3000
+```
+
+### 5.4 OrderBy()、OrderByDescending()
+
+```C#
+var res = list.OrderByDescending(x => x.Age).ThenByDescending(x=>x.Salary);
+//生成一个随机数并排序
+var res2 = list.OrderByDescending(x => Guid.NewGuid());
+Random random = new Random();
+var res22 = list.OrderByDescending(x => random.Next());
+foreach (var r in res2)
+{
+    Console.WriteLine(r.ToString());
+}
+```
+
+### 5.5 分页 Skip()、Take()
+
+```C#
+var res3 = list.Skip(1).Take(10);
+foreach (var r in res3)
+{
+    Console.WriteLine(r.ToString());
+}
+```
+
+### 5.6 聚合函数 Max、Min、Average、Sum、Count
+
+```C#
+Console.WriteLine(list.Max(x => x.Name)); //zack
+Console.WriteLine(list.Where(x => x.Age >= 30).Average(x => x.Salary)); //7300
+```
+
+### 5.7 GroupBy()
+
+GroupBy()方法参数是分组条件表达式，返回值为lGrouping<TKey,TSource>类型的泛型lEnumerable，也就是每一组以一个IGrouping对象的形式返回。lGrouping是一个继承自lEnumerable的接口，IGrouping中Key属性表示这一组的分组数据的值。
+
+```C#
+//按照年龄分组,并倒序
+IEnumerable<IGrouping<int,Employee>> res4 = list.GroupBy(x => x.Age).OrderByDescending(x=>x.Key);
+            foreach( var group in res4)
+            {
+                Console.WriteLine($@"年龄：{group.Key},人数：{group.Count()},最大工资：{group.Max(x => x.Salary)},最大工资：{group.Average(x => x.Salary)}");
+                foreach(var g in group)
+                {
+                    Console.WriteLine(g);
+                }
+                Console.WriteLine();
+            }
+```
+
+输出：
+
+```C#
+年龄：35,人数：3,最大工资：9000,最大工资：8500
+id=3,Name=lily,Age=35,Gender=False,Salary=9000
+id=6,Name=nancy,Age=35,Gender=False,Salary=8000
+id=7,Name=zack,Age=35,Gender=True,Salary=8500
+
+年龄：33,人数：2,最大工资：8000,最大工资：5500
+id=2,Name=jim,Age=33,Gender=True,Salary=3000
+id=8,Name=jack,Age=33,Gender=True,Salary=8000
+
+年龄：28,人数：1,最大工资：5000,最大工资：5000
+id=1,Name=jerry,Age=28,Gender=True,Salary=5000
+
+年龄：25,人数：1,最大工资：1000,最大工资：1000
+id=5,Name=kimi,Age=25,Gender=True,Salary=1000
+
+年龄：16,人数：1,最大工资：2000,最大工资：2000
+id=4,Name=lucy,Age=16,Gender=False,Salary=2000
+```
+
+### 5.8 投影操作Select()
 

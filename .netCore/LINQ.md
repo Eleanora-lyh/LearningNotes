@@ -358,5 +358,68 @@ id=5,Name=kimi,Age=25,Gender=True,Salary=1000
 id=4,Name=lucy,Age=16,Gender=False,Salary=2000
 ```
 
-### 5.8 投影操作Select()
+### 5.8 投影Select()
+
+```C#
+//1、投影结果
+var res = list.Select(x => x.Name + "," + x.Age).ToList();
+foreach (var r in res) Console.WriteLine(r);
+//2、匿名类型，编译器进行类型的推断
+var res2 = list.Select(x => new { Name = x.Name ,Age=x.Age }).ToList();
+foreach (var r in res2) Console.WriteLine(r);
+//3、例子:根据年龄分组，获取每组人数、最高工资、平均工资
+var res3 = list.GroupBy(x => x.Age)
+    .Select(x => new { Age = x.Key,Num=x.Count(),MaxSalary=x.Max(y=>y.Salary),AvgSalary=x.Average(y=>y.Salary) });
+//4、获取ld>2的数据，然后按照Age分组，并且把分组按照Age排序然后取出前3条，最后再投影取得年龄人数、平均工资
+var res = list.Where(x => x.id > 2)
+    .GroupBy(x => x.Age)
+    .OrderBy(x => x.Key)
+    .Take(3)
+    .Select(x => new { Age = x.Key, Num = x.Count(), Avg = x.Average(y => y.Salary) });
+foreach (var r in res) Console.WriteLine(r); 
+```
+
+输出
+
+```
+jerry,28
+jim,33
+lily,35
+lucy,16
+kimi,25
+nancy,35
+zack,35
+jack,33
+
+{ Name = jerry, Age = 28 }
+{ Name = jim, Age = 33 }
+{ Name = lily, Age = 35 }
+{ Name = lucy, Age = 16 }
+{ Name = kimi, Age = 25 }
+{ Name = nancy, Age = 35 }
+{ Name = zack, Age = 35 }
+{ Name = jack, Age = 33 }
+
+{ Age = 28, Num = 1, MaxSalary = 5000, AvgSalary = 5000 }
+{ Age = 33, Num = 2, MaxSalary = 8000, AvgSalary = 5500 }
+{ Age = 35, Num = 3, MaxSalary = 9000, AvgSalary = 8500 }
+{ Age = 16, Num = 1, MaxSalary = 2000, AvgSalary = 2000 }
+{ Age = 25, Num = 1, MaxSalary = 1000, AvgSalary = 1000 }
+
+{ Age = 16, Num = 1, Avg = 2000 }
+{ Age = 25, Num = 1, Avg = 1000 }
+{ Age = 33, Num = 1, Avg = 8000 }
+```
+
+### 5.9 ToList()、ToArray()
+
+### 5.10 查询语法
+
+之前写的叫做【LINQ方法语法 Method Syntax】，还有一种叫做【查询语法 Query Syntax】。【LINQ方法语法】在编译的过程中会被编译成【查询语法】
+
+```C#
+var res2 = from l in list
+    where l.Salary > 5000
+    select new { l.Age, l.Name, XB = l.Gender ? "男" : "女" };
+```
 

@@ -423,3 +423,41 @@ var res2 = from l in list
     select new { l.Age, l.Name, XB = l.Gender ? "男" : "女" };
 ```
 
+### 5.11 综合查询
+
+'61,90,100,99,18,22,38,66,80,93,55 ,50,89'计算这些成绩的平均值。
+
+```C#
+string s = "61,90,100,99,18,22,38,66,80,93,55,50,89";
+List<int> res = new List<int>();
+s.Where(x=>char.IsLetter(x)).ToList().ForEach(x =>
+                              {
+                                  res.Add(int.Parse(x));
+                              });
+Console.WriteLine(res.Average()); //66.23076923076923
+//第二种写法
+double avg = s.Split(',').Select(x=>Convert.ToInt32(x)).Average();
+Console.WriteLine(avg);
+```
+
+统计一个字符串中每个字母出(忽略大小写)，然现的频率后按照从高到低的顺序输出出现频率高于2次的单词和其出现的频率
+
+```C#
+//方法1：遍历过程中记录每个字符出现次数，再进行过滤和排序
+string s = "AfdMIFnsdiufSDFnAKdsahiogjnvueFSAdMGKJE";
+var dic = new Dictionary<string, int>();
+s.ToList().ForEach(x =>
+                   {
+                       var tmp = x.ToString().ToLower();
+                       if (dic.ContainsKey(tmp)) dic[tmp]++;
+                       else dic.Add(tmp, 1);
+                   });
+dic = dic.ToList().OrderByDescending(x => x.Value).Where(x => x.Value > 2).ToDictionary(k => k.Key, v => v.Value);
+foreach(var item in dic) Console.WriteLine(item.Key+"-"+item.Value);
+//方法2：使用GroupBy直接获取每个词出现的次数
+var res = s.Where(x => char.IsLetter(x)).Select(x => char.ToLower(x))
+    .GroupBy(x => x).Select(x => new { x.Key, num = x.Count() })
+    .OrderByDescending(x => x.num).Where(x => x.num > 2);
+foreach (var item in res) Console.WriteLine(item.Key + "-" + item.num);
+```
+

@@ -128,8 +128,10 @@ partial可以把一个类分拆在多处定义，只要各部分代码不冲突�
         mc:Ignorable="d"
         Title="MainWindow" Height="450" Width="800">
     <Window.Resources>
+    <-- 这里使用child="TimChild" 直接将字符串转为Human对象 -->
         <local:Human x:Key="human1" Name="Tim" Child="TimChild"/>
     </Window.Resources>
+    
     <Grid>
         <Path Data="M 0,0 L 200,100 L100,200 Z" Stroke="Black" Fill="Red"/>
         <Rectangle Height="100" Width="120" Stroke="Black" Fill="Blue" RadiusX="10" RadiusY="10"/>
@@ -137,6 +139,12 @@ partial可以把一个类分拆在多处定义，只要各部分代码不冲突�
     </Grid>
 </Window>
 
+```
+
+声明变量的方式：
+
+```xmal
+<local:类名 x:Key="对象名" 属性1="" 属性2=""/>
 ```
 
 .cs中
@@ -349,6 +357,12 @@ MarkupExtension的直接派生类并不多，它们是:
 
 最后，使用标记扩展时还需要注意以下几点:
 
-- 标记扩展是可以嵌套的，例如```Text="(Binding Source={StaticResource myDataSource),Path=PersonName)"```是正确的语法。
+- 标记扩展是可以嵌套的，例如```Text="(Binding Soce={StaticResource myDataSource),Path=PersonName)"```是正确的语法。
 - 标记扩展具有一些简写语法，例如"{Binding Value,….),"与"{Binding Path=Value,….)"是等价的、"({StaticResourcemyString.…)"与"{StaticResource ResourceKey=myString,.)"是等价的。两种写法中，前者称为固定位置参数(Posilional Parameter)，后者称为具名参数(Named Parameters)。固定位置参数实际上就是标记扩展类构造器的参数，其位置由构造器参数列表决定。
 - 标记扩展类的类名均以单词 Extension 为后级，在XAML,使用它们的时候 Extension 后级可以省略不写，比如写Text="{x:Static.."与写Text="{x:StaticExtension..."是等价的。
+
+## 4、XMAL的注释
+
+注释 Ctrl+e+c  解注释 Ctrl+e+u
+
+注释 Ctrl+k+c  解注释 Ctrl+k+u

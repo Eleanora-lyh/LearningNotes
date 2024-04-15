@@ -1,4 +1,4 @@
-
+DataContext
 
 让我们回归程序的本质。程序的本质是数据加算法，用户给进一个输入，经过算法的处理程序会反馈一个输出。这里，数据处于程序的核心地位。反过头来再看“UI驱动程序”，数据处于被动地位，总是在等待程序接收来自UI的消息/事件后被处理或者算法完成处理后被显示。**如何在 GUI编程时把数据的地位由被动变主动、让数据回归程序的核心呢?这就是本章要详细讲述的 Data Binding.** 逻辑层、让展示层永远处于逻辑层的从属地位。WPF具有这种能力的关键是它引入了Data BindingProperty系统和DataTemplate概念以及与之配套的 Dependency。
 
@@ -46,7 +46,7 @@ namespace WPFBinding.Entity
 
 设计一个窗口，点击按钮后通过binding的值修改textbox的显示内容
 
-```xmal
+```html
 <Window x:Class="WPFBinding.SimpleBindingWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -117,7 +117,7 @@ this.textBox1.SetBinding(TextBox.TextProperty, new Binding("StudentName") { Sour
 
 ![image-20240414112339356](../TyporaImgs/image-20240414112339356.png)
 
-## 2、Binding 的源与路径
+## 2、Binding 的路径 Path
 
 Binding的源也就是数据的源头。Binding 对源的要求并不苛刻--只要它是一个对象，并且通过属性公开自己的数据，它就能作为 Binding的源。
 
@@ -127,7 +127,7 @@ Binding的源也就是数据的源头。Binding 对源的要求并不苛刻--只
 
 下面的代码是把一个 TextBox的 Text 属性关联在了Slider的Value属性上。
 
-```xmal
+```html
 <Window x:Class="WPFBinding._1ControlAsBindingWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -147,7 +147,7 @@ Binding的源也就是数据的源头。Binding 对源的要求并不苛刻--只
 
 <img src="../TyporaImgs/image-20240414113829198.png" alt="image-20240414113829198" style="zoom:67%;" />
 
-```xmal
+```html
  <TextBox x:Name="textBox1" Text="{Binding Path=Value,ElementName=slider1}" BorderBrush="Black" Margin="5"/>
 ```
 
@@ -167,13 +167,13 @@ Binding 在源与目标之间架起了沟通的桥梁，默认情况下数据既
 
 控制 Binding 数据流向的属性是 Mode，它的类型是 BindingMode 枚举。BindingMode 可取值为**TwoWay、OneWay、OnTime、OneWayToSource 和 Default**。这里的 Default 值是指 Binding 的模式会根据目标的实际情况来确定，比如若是可编辑的(如TextBox.Text属性)，Default 就采用双向模式;若是只读的(如TextBlock.Text)则采用单向模式。
 
-```xmal
+```html
  <TextBox x:Name="textBox1" Text="{Binding Path=Value,ElementName=slider1}" BorderBrush="Black" Margin="5"/>
 ```
 
 Binding的基础上增加 UpdateSourceTrigger=PropertyChanged，则可以通过TextBox修改slider的拖动条位置
 
-```xmal
+```html
 <TextBox x:Name="textBox1" Text="{Binding ElementName=slider1, Path=Value,
            UpdateSourceTrigger=PropertyChanged}" BorderBrush="Black" Margin="5"/>
 ```
@@ -192,13 +192,13 @@ UpdateSourceTrigger，它的类型是UpdateSourceTrigger枚举，可取值为**P
 
 最简单的情况就是直接把Binding关联在 Binding 源的属性上，前面的例子就是这样。语法如下:
 
-```xmal
+```html
  <TextBox x:Name="textBox1" Text="{Binding Path=Value,ElementName=slider1}"/>
 ```
 
 等价于
 
-```xmal
+```html
  <TextBox x:Name="textBox2"/>
 ```
 
@@ -243,7 +243,7 @@ this.textBox2.SetBinding(TextBox.TextProperty, binding);
 
 样例：让一个TextBox显示另外一个TextBox的文本长度
 
-```xmal
+```html
 <Window x:Class="WPFBinding._3BindingPathWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -265,7 +265,7 @@ this.textBox2.SetBinding(TextBox.TextProperty, binding);
 
 当使用一个集合或DataView作为Bindind源时，如果我们想把它的默认元素当做Path使用，则需要使用这样的语法：
 
-```xmal
+```html
 <TextBox x:Name="textbox3" BorderBrush="Black" Margin="5"/>
 <TextBox x:Name="textbox4" BorderBrush="Black" Margin="5"/>
 <TextBox x:Name="textbox5" BorderBrush="Black" Margin="5"/>
@@ -356,7 +356,7 @@ namespace WPFBinding.Entity
 
 xmal代码
 
-```xmal
+```html
 <!--测试多级集合的值作为数据源-->
 <TextBox x:Name="textbox6" BorderBrush="Black" Margin="5"/>
 <TextBox x:Name="textbox7" BorderBrush="Black" Margin="5"/>
@@ -386,7 +386,7 @@ this.textbox8.SetBinding(TextBox.TextProperty, new Binding("ProvinceList[0].City
 
 有的时候我们会在代码中看到一些 Path是一个“.”或者干脆没有Path的Binding，着实让人摸不着头脑。原来，这是一种比较特殊的情况--Binding 源本身就是数据且不需要 Path 来指明。典型的，string、int 等基本类型就是这样，他们的实例本身就是数据，我们无法指出通过它的哪个属性来访问这个数据，这时我们只需将Path 的值设置为```“.”```就可以了。在 XAML 代码里这个“.”可以省略不写，```但在C#代码里却不能省略```。请看下面的代码：
 
-```xmal
+```html
 <Window x:Class="WPFBinding._3BindingPathWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -413,7 +413,7 @@ this.textbox8.SetBinding(TextBox.TextProperty, new Binding("ProvinceList[0].City
 
 <img src="../TyporaImgs/image-20240414231117843.png" alt="image-20240414231117843" style="zoom:67%;" />
 
-```xmal
+```html
 <TextBlock x:Name="TextBlock1" Margin="5" TextWrapping="Wrap" FontSize="16"
                    Text="{Binding Path=., Source={StaticResource ResourceKey=str}}"/>
 由于Binding类有一个参数为Path的构造函数，所以Path=可以省略
@@ -424,22 +424,255 @@ this.textbox8.SetBinding(TextBox.TextProperty, new Binding("ProvinceList[0].City
                    Text="{Binding Source={StaticResource ResourceKey=str}}"/>
 ```
 
-### 2.5、为Binding指定源Source的方法
+## 3、Binding 指定源 Source的方法
 
-### 2.6、没有Source的Binding——使用DataContext作为Binding的源
+Binding的源是数据的来源，所以，只要一个对象包含数据并能通过属性把数据暴露出来，它就能当作 Binding 的源来使用。包含数据的对象比比皆是，但必须为 Binding的 Source 指定合适的对象，Binding才能正确工作，常见的办法有：
 
-### 2.7、使用集合对象作为列表控件的ItemsSource
+1. 把普通 CLR 类型```单个对象```指定为Source：包括.NETFramework自带类型的对象和用户自定义类型的对象。如果类型实现了INotifyPropertyChanged 接口，则可通过在属性的set语句里激发 PropertyChanged 事件来通知 Binding 数据已被更新。
+2. 把容器的```DataContext ```指定为 Source(WPF Data Binding 的默认行为)：有时候我们会遇到这样的情况--我们明确知道将从哪个属性获取数据，但具体把哪个对象作为 Binding源还不能确定。这时候，我们只能先建立一个 Binding 只给它设置Path 而不设置 Source，让这个 Binding 自己去寻找 Source。这时候 Binding 会自动把控件的 DataContext 当作自己的 Source(它会沿着控件树一层一层向外找，直到找到带有 Path 指定属性的对象为止)。
+3. 把普通 CLR ```集合```类型对象指定为Source：包括数组、List<T>、ObservableCollection<T>等集合类型。实际工作中，我们经常需要把一个集合作为ItemsControl派生类的数据源来使用，一般是把控件的ItemsSource 属性使用 Binding关联到一个集合对象上。
+4. 把 ```ADO.NET```数据对象指定为Source：包括DataTable 和 DataView等对象。
+5. 使用 XmlDataProvider 把```XML数据```指定为Source：XML 作为标准的数据存储和传输格式几乎无处不在，我们可以用它表示单个数据对象或者集合；一些WPF控件是级联式的(如 TreeView 和 Menu)，我们可以把树状结构的 XML 数据作为源指定给与之关联的Binding。
+6. 把```依赖对象(DependencyObject)```指定为Source：依赖对象不仅可以作为 Binding的目标，同时也可以作为 Binding的源。这样就有可能形成 Binding链。依赖对象中的依赖属性可以作为 Binding 的 Path.
+7. 通过 ```ElementName```指定Source：在C#代码里可以直接把对象作为 Source 赋值给 Binding，但 XAML无法访问对象，所以只能使用对象的Name 属性来找到对象。
+8. 通过 Binding 的``` RelativeSource 属性```相对地指定Source：当控件需要关注自己的、自己容器的或者自己内部元素的某个值就需要使用这种办法。
+9. 把 ```ObjectDataProvider 对象```指定为 Source：当数据源的数据不是通过属性而是通过方法暴露给外界的时候，我们可以使用这两种对象来包装数据源再把它们指定为Source。
+10. 把使用 ```LINQ 检索得到的数据对象```作为Binding的源
 
-### 2.8、使用ADO.NET作为Binding的源
+### 3.1、使用单个对象作为Binding的源
 
-### 2.9、使用XML作为Binding的源
+把单个CLR类型对象指定为Binding的Source，方法有两种：
 
-### 2.10、使用LINQ检索结果作为Binding的源
+把对象赋值给 Binding.Source 属性：
 
-### 2.11、使用ObjectDataProvider对象作为Binding的源
+```html
 
-### 2.12、使用Binding的RelativeSource
+<StackPanel.Resources>
+    <sys:String x:Key="str">
+        菩提本无树，明镜亦非台。
+        本来无一物，何处惹尘埃。
+    </sys:String>
+</StackPanel.Resources>
+<TextBlock x:Name="TextBlock1" Margin="5" TextWrapping="Wrap" FontSize="16" Text="{Binding Path=., Source={StaticResource ResourceKey=str}}"/>
 
-## 3、Binding 对数据的转换与校验
+```
+
+把对象的 Name 赋值给 Binding.ElementName：
+
+```html
+<TextBox x:Name="textBox1" Text="{Binding ElementName=slider1, Path=Value,
+               UpdateSourceTrigger=PropertyChanged}" BorderBrush="Black" Margin="5"/>
+<Slider x:Name="slider1" Maximum="100" Minimum="0" Margin="5"/>
+```
+
+### 3.2、没有Source的Binding——使用DataContext作为Binding的源
+
+DataContext 属性被定义在FrameworkElement 类里，这个类是 WPF 控件的基类，这意味着所有WPF控件(包括容器控件)都具备这个属性。如前所述，WPF的UI布局是树形结构，这棵树的每个结点都是控件，由此我们推出另一个结论——**在UI元素树的每个结点都有DataContext**。
+
+这一点非常重要，因为当一个Binding **只知道自己的 Path 而不知道自己的 Soruce 时**，它会沿着 UI元素树一路向树的根部找，过去每路过一个结点就要看看这个结点的DataContext是否具有Path所指定的属性。如果有，那就把这个对象作为自己的Source；如果没有，那就继续找下去；如果到了树的根部还没有找到，那这个Binding就没有Source，因而也不会得到数据。让我们看下面的例子:
+
+```html
+<Window x:Class="WPFBinding.DataContextBinding"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:WPFBinding.Entity"
+        mc:Ignorable="d"
+        Title="DataContextBinding" Height="135" Width="300">
+    <StackPanel Background="LightBlue">
+        <StackPanel.DataContext>
+            <local:Person Id="9" Age="23" Name="Tim"/>
+        </StackPanel.DataContext>
+        <Grid>
+            <StackPanel>
+                <TextBox Text="{Binding Path=Id}" Margin="5"/>
+                <TextBox Text="{Binding Path=Name}" Margin="5"/>
+                <TextBox Text="{Binding Path=Age}" Margin="5"/>
+            </StackPanel>
+        </Grid>
+    </StackPanel>
+</Window>
+```
+
+这个例子中，三个TextBox的Binding中只指定了Path的值，但最终却能显示Person对象的值，是因为他们沿着UI元素树向上找到了Path指定的元素对应的值。（简单点理解一下，类似子类继承父类，如果子类中没有声明父类的属性，当子类的实例中使用父类的属性时，就会根据继承关系一层一层向上找，直至找到此属性值，若没有找到则返回null）
+
+<img src="../TyporaImgs/image-20240415210127145.png" alt="image-20240415210127145" style="zoom: 40%;" />
+
+由于Binding类有以Path为参数的构造函数，所以还可以简写为
+
+```html
+<TextBox Text="{Binding Id}" Margin="5"/>
+<TextBox Text="{Binding Name}" Margin="5"/>
+<TextBox Text="{Binding Age}" Margin="5"/>
+```
+
+根据 2.4 没有Path的Binding 所示，当Binding的Source本身就是数据源、不需要属性暴露数据时（Binding 的 Source 为 基本数据类型时）Path可以设置为 ```.```，或不写。结合Source为DataContext的情况，可以写一个下面的样例：
+
+```html
+<Window x:Class="WPFBinding.DataContextBinding"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:WPFBinding.Entity" 
+        xmlns:sys="clr-namespace:System;assembly=mscorlib"
+        mc:Ignorable="d"
+        Title="DataContextBinding" Height="135" Width="400">
+    <StackPanel Background="LightBlue">
+        <StackPanel.DataContext>
+            <local:Person Id="9" Age="23" Name="Tim"/>
+        </StackPanel.DataContext>
+        <Grid>
+            <Grid.DataContext>
+                <sys:String>Hello DataContext!</sys:String>
+            </Grid.DataContext>
+            <TextBox Text="{Binding  Mode=OneWay}" Margin="5" Background="LightGreen"/>
+        </Grid>
+        <Grid>
+            <StackPanel>
+                <TextBox Text="{Binding Path=Id}" Margin="5"/>
+                <TextBox Text="{Binding Path=Name}" Margin="5"/>
+                <TextBox Text="{Binding Path=Age}" Margin="5"/>
+            </StackPanel>
+        </Grid>
+    </StackPanel>
+</Window>
+```
+
+效果：
+
+<img src="../TyporaImgs/image-20240415214326616.png" alt="image-20240415214326616" style="zoom:40%;" />
+
+需要注意一点： DataContext 属性是继承的，子控件会继承其父控件的 DataContext。下面3个TextBox的上一层为StackPanel，继承自最上面层的StackPanel的DataContext，所以获取到的是<StackPanel.DataContext>的Person。
+
+每个控件只能有一个 DataContext，因为 DataContext 用于设置该控件及其子控件的数据源，这种绑定关系是一对一的。
+
+在实际工作中 DataContext的用法是非常灵活的。比如:
+
+(1)当U上的多个控件都使用 Binding 关注同一个对象时，不妨使用 DataContext。
+
+(2)当作为Source的对象不能被直接访问的时候--比如B窗体内的控件想把A窗体内的控件当作自己的 Binding 源时，但A窗体内的控件是 private 访问级别，这时候就可以把这个控件(或者控件的值)作为窗体A的DataContext(这个属性是public访问级别的)从而暴露数据。形象地说，这时候外层容器的 DataContext 就相当于一个数据的“制高点”，只要把数据放上去，别的元素就都能看见。另外，DataContext本身也是一个依赖属性，我们可以使用Binding把它关联到一个数据源上。
+
+### 3.3、使用集合对象作为列表控件的ItemsSource
+
+```html
+<Window x:Class="WPFBinding.ItemsSourceBinding"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:WPFBinding"
+        mc:Ignorable="d"
+        Title="ItemsSourceBinding" Height="240" Width="300">
+    <StackPanel x:Name="stackPanel" Background="LightBlue">
+        <TextBlock Text="Student ID:" FontWeight="Bold" Margin="5"/>
+        <TextBox x:Name="textBoxId" Margin="5"/>
+        <TextBlock Text="Student List:" FontWeight="Bold" Margin="5"/>
+        <ListBox x:Name="listBoxStudent" Height="110" Margin="5"/>
+    </StackPanel>
+</Window>
+
+```
+
+.cs文件
+
+```C#
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Documents;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Shapes;
+using WPFBinding.Entity;
+
+namespace WPFBinding
+{
+    /// <summary>
+    /// ItemsSourceBinding.xaml 的交互逻辑
+    /// </summary>
+    public partial class ItemsSourceBinding : Window
+    {
+        public ItemsSourceBinding()
+        {
+            InitializeComponent();
+            //准备数据源
+            List<Person> people = new List<Person>();
+            people.Add(new Person(0, "Tim", 23));
+            people.Add(new Person(1, "Tom", 25));
+            people.Add(new Person(2, "Tony", 22));
+            people.Add(new Person(3, "Vina", 28));
+            people.Add(new Person(4, "Mike", 23));
+            people.Add(new Person(5, "Kyle", 21));
+            //ListBox设置Binding
+            this.listBoxStudent.ItemsSource = people;
+            this.listBoxStudent.DisplayMemberPath = "Name";
+            //textBox设置binding
+            Binding binding = new Binding("SelectedItem.Id") { Source=this.listBoxStudent};
+            this.textBoxId.SetBinding(TextBox.TextProperty, binding);
+        }
+    }
+}
+```
+
+效果：勾选列表的选项，textbox中显示id
+
+<img src="../TyporaImgs/image-20240415224403039.png" alt="image-20240415224403039" style="zoom:70%;" />
+
+```this.listBoxStudent.DisplayMemberPath = "Name";```当 DisplayMemberPath属性被赋值后，ListBox在获得 ItemsSource的时候就会创建等量的 ListBoxltem 并以 DisplayMemberPath 属性值为 Path 创建 Binding，Binding的目标是 ListBoxItem的内容插件。
+
+当注释掉这句话时，xmal代码将变为：
+
+```html
+<!--<ListBox x:Name="listBoxStudent" Height="110" Margin="5"/>-->
+        <ListBox x:Name="listBoxStudent" Height="110" Margin="5">
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{Binding Path=Id}" Width="30"/>
+                        <TextBlock Text="{Binding Path=Name}" Width="30"/>
+                        <TextBlock Text="{Binding Path=Age}" Width="30"/>
+                    </StackPanel>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+```
+
+最后特别提醒大家一点:在使用集合类型作为列表控件的ItemsSource 时一般会考虑使用```ObservableCollection<T>代替List<T>```，因为 ObservableCollection<T>类实现了 ```INotifyCollectionChanged 和INotifyPropertyChanged 接口```，能把集合的变化立刻通知显示它的列表控件，改变会立刻显现出来。
+
+### 3.4、使用ADO.NET作为Binding的源
+
+```bash
+NuGet\Install-Package Microsoft.EntityFrameworkCore -Version 6.0.0
+NuGet\Install-Package Microsoft.EntityFrameworkCore.Relational -Version 6.0.0
+NuGet\Install-Package Microsoft.EntityFrameworkCore.Design -Version 6.0.0
+NuGet\Install-Package Microsoft.EntityFrameworkCore.Tools -Version 6.0.0
+
+NuGet\Install-Package Microsoft.EntityFrameworkCore.SqlServer -Version 9.0.0-preview.3.24172.4
+NuGet\Install-Package Microsoft.EntityFrameworkCore.SqlServer -Version 6.0.0
+```
+
+
+
+### 3.4、使用XML作为Binding的源
+
+### 3.5、使用LINQ检索结果作为Binding的源
+
+### 3.6、使用ObjectDataProvider对象作为Binding的源
+
+### 3.7、使用Binding的RelativeSource
+
+## 4、Binding 对数据的转换与校验
 
 NuGet\Install-Package Prism.Wpf -Version 8.1.97
+
+
+
+这段代码中的TextBox为什么获取不到StackPanel.DataContext中的String

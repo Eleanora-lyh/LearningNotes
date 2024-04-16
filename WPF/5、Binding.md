@@ -649,23 +649,454 @@ namespace WPFBinding
 
 ### 3.4、使用ADO.NET作为Binding的源
 
+首先使用EFCore连接sqlserver数据库添加点数据：
+
+1）在WPFBinding项目中添加下面的项目依赖
+
 ```bash
 NuGet\Install-Package Microsoft.EntityFrameworkCore -Version 6.0.0
 NuGet\Install-Package Microsoft.EntityFrameworkCore.Relational -Version 6.0.0
 NuGet\Install-Package Microsoft.EntityFrameworkCore.Design -Version 6.0.0
 NuGet\Install-Package Microsoft.EntityFrameworkCore.Tools -Version 6.0.0
 
-NuGet\Install-Package Microsoft.EntityFrameworkCore.SqlServer -Version 9.0.0-preview.3.24172.4
 NuGet\Install-Package Microsoft.EntityFrameworkCore.SqlServer -Version 6.0.0
+```
+
+2）准备要映射到数据库的表对象
+
+```C#
+using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace WPFBinding.Entity
+{
+    [Table("T_Person")]
+    public class Person
+    {
+        //设置自增主键
+        [Key]
+        [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
+        public int Id { get; set; }
+        public string Name { get; set; }       
+        public int Age { get; set; }
+
+        public Person(int id, string name, int age)
+        {
+            Id = id;
+            Name = name;
+            Age = age;
+        }
+
+        public Person()
+        {
+        }
+
+        public Person(string name, int age)
+        {
+            Name = name;
+            Age = age;
+        }
+    }
+}
+```
+
+3）新建一个DefaultDbContext作为数据库上下文
+
+```C#
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
+using WPFBinding.Entity;
+
+namespace WPFBinding.DBContexts
+{
+    public class DefaultDbContext : DbContext
+    {
+        public DbSet<Person> People { get; set; }
+        protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder) 
+        {
+            //对数据库连接字符串
+            optionsBuilder.UseSqlServer("Server=localhost;Database=test;User Id=sa;Password=root;"); 
+        }
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            base.OnModelCreating(modelBuilder);
+        }
+    }
+}
+```
+
+4）运行数据迁移指令，在数据库生成对应的表
+
+```bash
+Add-Migration add_table_student
+预览确认生成无误后 更新数据库表
+update-database
+```
+
+5）新建一个窗口用于新增Person表数据
+
+```html
+<Window x:Class="WPFBinding.PersonWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:WPFBinding"
+        mc:Ignorable="d"
+        Title="PersonWindow" Height="300" Width="300">
+    <StackPanel>
+        <TextBlock Text="Student Name:" FontWeight="Bold" Margin="5"/>
+        <TextBox x:Name="stuName" Margin="5"/>
+        <TextBlock Text="Student Age:" FontWeight="Bold" Margin="5"/>
+        <TextBox x:Name="stuAge" Margin="5"/>
+        <Button Content="submit" Click="Button_Click" HorizontalAlignment="Center" Background="LightBlue"/>
+    </StackPanel>
+</Window>
+```
+
+.cs文件
+
+```C#
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Documents;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Shapes;
+using WPFBinding.DBContexts;
+using WPFBinding.Entity;
+using WPFBinding.Util;
+
+namespace WPFBinding
+{
+    /// <summary>
+    /// PersonWindow.xaml 的交互逻辑
+    /// </summary>
+    public partial class PersonWindow : Window
+    {
+        public PersonWindow()
+        {
+            InitializeComponent();
+        }
+
+        private void Button_Click(object sender, RoutedEventArgs e)
+        {
+            var name = this.stuName.Text;
+            var age = this.stuAge.Text;
+            using (var ctx = new DefaultDbContext())
+            {
+                //将文字的年龄转为数字
+                int ageNum = 0;
+                int.TryParse(age,out ageNum);
+                ctx.People.Add(new Person(name, ageNum));
+                //更新成功后才清除文字显示
+                if (ctx.SaveChanges() != 0)
+                {
+                    this.stuName.Text = "";
+                    this.stuAge.Text = "";
+                }
+            }
+            
+        }
+    }
+}
+```
+
+效果：
+
+![image-20240416210204283](../TyporaImgs/image-20240416210204283.png)
+
+然后编写一个IEnumerable<T>转为DataSet的帮助类，模拟获取到的DataSet
+
+```C#
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Data;
+using System.Linq;
+using System.Reflection;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace WPFBinding.Util
+{
+    public static class DataSetHelper
+    {
+        public static DataTable ToDataTable<T>(IEnumerable<T> collection)
+        {
+            var props = typeof(T).GetProperties();
+            var dt = new DataTable();
+            dt.Columns.AddRange(props.Select(p => new DataColumn(p.Name, p.PropertyType)).ToArray());
+            if (collection.Count() > 0)
+            {
+                for (int i = 0; i < collection.Count(); i++)
+                {
+                    ArrayList tempList = new ArrayList();
+                    foreach (PropertyInfo pi in props)
+                    {
+                        object obj = pi.GetValue(collection.ElementAt(i), null);
+                        tempList.Add(obj);
+                    }
+                    object[] array = tempList.ToArray();
+                    dt.LoadDataRow(array, true);
+                }
+            }
+            return dt;
+        }
+    }
+}
 ```
 
 
 
-### 3.4、使用XML作为Binding的源
+```html
+<Window x:Class="WPFBinding.ADONETBinding"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:WPFBinding"
+        mc:Ignorable="d"
+        Title="ADONETBinding" Height="260" Width="250">
+    <StackPanel Background="LightBlue">
+        <ListBox x:Name="listBoxStudent" Height="130" Margin="5"/>
+        <Button Content="Load" Height="25" Margin="5,0" Click="Button_Click"/>
+    </StackPanel>
+</Window>
+```
 
-### 3.5、使用LINQ检索结果作为Binding的源
+.cs文件
+
+```C#
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Documents;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Shapes;
+using WPFBinding.DBContexts;
+using WPFBinding.Entity;
+using WPFBinding.Util;
+
+namespace WPFBinding
+{
+    /// <summary>
+    /// ADONETBinding.xaml 的交互逻辑
+    /// </summary>
+    public partial class ADONETBinding : Window
+    {
+        public ADONETBinding()
+        {
+            InitializeComponent();
+            
+        }
+
+        private void Button_Click(object sender, RoutedEventArgs e)
+        {
+            DataTable dt = null;
+            //读取数据库数据，并转为DataTable
+            using (var ctx = new DefaultDbContext())
+            {
+                var peopleList = ctx.People.ToList();
+                dt = DataSetHelper.ToDataTable<Person>(peopleList);
+            }
+            //标识哪列显示在列表中
+            this.listBoxStudent.DisplayMemberPath = "Name";
+            this.listBoxStudent.ItemsSource = dt.DefaultView;
+        }
+    }
+}
+```
+
+效果：
+
+<img src="../TyporaImgs/image-20240416210546649.png" alt="image-20240416210546649" style="zoom:67%;" />
+
+```this.listBoxStudents.1temsSource= dt.DefaultView;``` DataTable 的DefaultView 属性是一个 DataView类型的对象，DataView类实现了IEnumerable 接口，所以可以被赋值给 ListBox.ItemsSource 属性。
+
+ListBox 显示的每个项目通常只包含一个文本字符串，ListView 每列可以包含不同类型的内容，如文本、图像、复选框等，多数情况下我们会选择 ListView 控件来显示一个 DataTable
+
+```html
+<Window x:Class="WPFBinding.ADONETBinding"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:WPFBinding"
+        mc:Ignorable="d"
+        Title="ADONETBinding" Height="260" Width="250">
+    <StackPanel Background="LightBlue">
+        <!--<ListBox x:Name="listBoxStudent" Height="130" Margin="5"/>
+        <Button Content="Load" Height="25" Margin="5,0" Click="Button_Click"/>-->
+        <ListView x:Name="ListViewPeople" Height="130" Margin="5">
+            <ListView.View>
+                <GridView>
+                    <GridViewColumn Header="Id" Width="60" DisplayMemberBinding="{Binding Id}"/>
+                    <GridViewColumn Header="Name" Width="60" DisplayMemberBinding="{Binding Name}"/>
+                    <GridViewColumn Header="Age" Width="60" DisplayMemberBinding="{Binding Age}"/>
+                </GridView>
+            </ListView.View>
+        </ListView>
+        <Button Content="Load" Height="25" Margin="5,0" Click="Button_Click"/> 
+    </StackPanel>
+</Window>
+```
+
+首先，从字面上理解 ListView和 GridView应该是同一级别的控件，实际上远非这样！ListView是ListBox 的派生类而GridView是 ViewBase 的派生类，ListView的 View 属性是一个 ViewBase 类型的对象，所以，GridView 可以作为 ListView的 View 来使用而不能当作独立的控件来使用。这里使用的理念是组合模式，即 ListView“有一个”View，至于这个 View是 GridView还是其他什么类型的 View则由程序员自由选择。
+
+其次，GirdView 的内容属性是 Columns，这个属性是 GridViewColumnCollection类型对象，因为 XAML 支持对内容属性的简写，所以省略了```<GridView.Columns>.. </GridView.Columns>```这层标签，直接在<GridView>的内容部分定义了三个GridViewColumn 对象。
+
+GridViewColumn对象最重要的一个属性是 DisplayMemberBinding(类型为 BindingBase)，使用这个属性可以指定这一列使用什么样的 Binding去关联数据--这与ListBox有点不同，ListBox使用的是DisplayMemberPath 属性(类型为string),如果想用更复杂的结构来表示这一列的标题( Header)或数据，则可为GridViewColumn设置HeaderTemplate和CellTemplate属性，它们的类型都是DataTemplate.
+
+.cs文件
+
+```C#
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Documents;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Shapes;
+using WPFBinding.DBContexts;
+using WPFBinding.Entity;
+using WPFBinding.Util;
+
+namespace WPFBinding
+{
+    /// <summary>
+    /// ADONETBinding.xaml 的交互逻辑
+    /// </summary>
+    public partial class ADONETBinding : Window
+    {
+        public ADONETBinding()
+        {
+            InitializeComponent();
+            
+        }
+
+        private void Button_Click(object sender, RoutedEventArgs e)
+        {
+            DataTable dt = null;
+            using (var ctx = new DefaultDbContext())
+            {
+                var peopleList = ctx.People.ToList();
+                dt = DataSetHelper.ToDataTable<Person>(peopleList);
+            }
+            //this.listBoxStudent.DisplayMemberPath = "Name";
+            //this.listBoxStudent.ItemsSource = dt.DefaultView;
+            this.ListViewPeople.ItemsSource = dt.DefaultView;
+        }
+    }
+}
+```
+
+
+
+<img src="../TyporaImgs/image-20240416211420545.png" alt="image-20240416211420545" style="zoom:67%;" />
+
+当你把 DataTable 对象放在一个对象的 DataContext属性里，并把 ItemsSource 与一个既没有指定 Source 又没有指定 Path 的 Binding关联起来时，Binding却能自动找到它的DefaultView 并当作自己的 Source 来使用：
+
+```C#
+this.ListViewPeople.ItemsSource = dt.DefaultView;
+//可以写为：
+this.ListViewPeople.DataContext = dt;
+this.ListViewPeople.SetBinding(ListView.ItemsSourceProperty,new Binding());
+```
+
+### 3.5、使用XML作为Binding的源
+
+感觉不重要，先不学
+
+### 3.6、使用LINQ检索结果作为Binding的源
+
+xmal代码同 3.4、使用ADO.NET作为Binding的源
+
+```C#
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Documents;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Shapes;
+using WPFBinding.DBContexts;
+using WPFBinding.Entity;
+using WPFBinding.Util;
+
+namespace WPFBinding
+{
+    /// <summary>
+    /// LINQBinding.xaml 的交互逻辑
+    /// </summary>
+    public partial class LINQBinding : Window
+    {
+        public LINQBinding()
+        {
+            InitializeComponent();
+        }
+
+        private void Button_Click(object sender, RoutedEventArgs e)
+        {
+            List<Person> peopleList = null;
+            using (var ctx = new DefaultDbContext())
+            {
+                peopleList = ctx.People.ToList();
+            }
+            //直接将ItemsSource的值赋为List即可
+            this.listViewPeople.ItemsSource = peopleList;
+        }
+    }
+}
+
+```
 
 ### 3.6、使用ObjectDataProvider对象作为Binding的源
+
+理想的情况下，上游程序员把类设计好、使用属性把数据暴露出来，下游程序员把这些类的实例作为 Binding的 Source、把属性作为 Binding的Path 来消费这些类。但很难保证一个类的所有数据都使用属性暴露出来，比如我们需要的数据可能是方法的返回值。而重新设计底层类的风险和成本会比较高，况且黑盒引用类库的情况下我们也不可能更改已经编译好的类。
+
+这时候就需要使用ObjectDataProvider 来包装作为 Binding 源的数据对象了。ObjectDataProvider，顾名思义就是把对象作为数据源提供给Binding。前面还提到过XmlDataProvider，也就是把XML 数据作为数据源提供给Binding。这两个类的父类都是DataSourceProvider 抽象类。
+
+
 
 ### 3.7、使用Binding的RelativeSource
 

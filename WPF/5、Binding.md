@@ -1094,16 +1094,507 @@ namespace WPFBinding
 
 理想的情况下，上游程序员把类设计好、使用属性把数据暴露出来，下游程序员把这些类的实例作为 Binding的 Source、把属性作为 Binding的Path 来消费这些类。但很难保证一个类的所有数据都使用属性暴露出来，比如我们需要的数据可能是方法的返回值。而重新设计底层类的风险和成本会比较高，况且黑盒引用类库的情况下我们也不可能更改已经编译好的类。
 
-这时候就需要使用ObjectDataProvider 来包装作为 Binding 源的数据对象了。ObjectDataProvider，顾名思义就是把对象作为数据源提供给Binding。前面还提到过XmlDataProvider，也就是把XML 数据作为数据源提供给Binding。这两个类的父类都是DataSourceProvider 抽象类。
+这时候就需要使用ObjectDataProvider 来包装作为 Binding 源的数据对象了。ObjectDataProvider类的作用是用来包装一个以方法暴露数据的对象，并将其作为数据源提供给Binding。前面还提到过XmlDataProvider，也就是把XML 数据作为数据源提供给Binding。这两个类的父类都是DataSourceProvider 抽象类。
 
+首先介绍一下ObjectDataProvider的使用：建一个类Calculator实现Add方法
 
+```C#
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace WPFBinding.Entity
+{
+    public class Calculator
+    {
+        public string Add(string arg1,string arg2)
+        {
+            double x = 0;
+            double y = 0;
+            double z = 0;
+            if(double.TryParse(arg1,out x) && double.TryParse(arg2,out y))
+            {
+                z = x + y;
+                return z.ToString();
+            }
+            return "Input Error!";
+        }
+    }
+}
+```
+
+xmal中设置一个按钮
+
+```html
+<Window x:Class="WPFBinding.ObjectDataProviderWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:WPFBinding"
+        mc:Ignorable="d"
+        Title="ObjectDataProviderWindow" Height="450" Width="800">
+    <StackPanel Background="LightBlue">
+        <Button Content="测试" Click="Button_Click"/>
+    </StackPanel>
+</Window>
+
+```
+
+点击后触发实践，计算两数之和
+
+```C#
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Documents;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Shapes;
+using WPFBinding.Entity;
+
+namespace WPFBinding
+{
+    /// <summary>
+    /// ObjectDataProviderWindow.xaml 的交互逻辑
+    /// </summary>
+    public partial class ObjectDataProviderWindow : Window
+    {
+        public ObjectDataProviderWindow()
+        {
+            InitializeComponent();
+        }
+
+        private void Button_Click(object sender, RoutedEventArgs e)
+        {
+            ObjectDataProvider odp = new ObjectDataProvider();
+            odp.ObjectInstance = new Calculator();
+            odp.MethodName = "Add";
+            odp.MethodParameters.Add("100");
+            odp.MethodParameters.Add("200");
+            MessageBox.Show(odp.Data.ToString());
+        }
+    }
+}
+```
+
+现在实现一个功能：在两个TextBox输入数字后，第三个TextBox能实时显示数字的和：
+
+```html
+<Window x:Class="WPFBinding.ObjectDataProviderWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:WPFBinding"
+        mc:Ignorable="d"
+        Title="ObjectDataProviderWindow" Height="135" Width="300">
+    <StackPanel Background="LightBlue">
+        <Button Content="测试" Click="Button_Click"/>
+        <TextBox x:Name="arg1" Margin="5"/>
+        <TextBox x:Name="arg2" Margin="5"/>
+        <TextBox x:Name="res" Margin="5"/>
+    </StackPanel>
+</Window>
+```
+
+```C#
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Documents;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Shapes;
+using WPFBinding.Entity;
+
+namespace WPFBinding
+{
+    /// <summary>
+    /// ObjectDataProviderWindow.xaml 的交互逻辑
+    /// </summary>
+    public partial class ObjectDataProviderWindow : Window
+    {
+        public ObjectDataProviderWindow()
+        {
+            InitializeComponent();
+            this.SetBinding();
+        }
+
+        private void Button_Click(object sender, RoutedEventArgs e)
+        {
+            ObjectDataProvider odp = new ObjectDataProvider();
+            odp.ObjectInstance = new Calculator();
+            odp.MethodName = "Add";
+            odp.MethodParameters.Add("100");
+            odp.MethodParameters.Add("200");
+            MessageBox.Show(odp.Data.ToString());
+        }
+        private void SetBinding()
+        {
+            //创建并配置 ObjectDataProvider 对象
+            ObjectDataProvider odp = new ObjectDataProvider();
+            odp.ObjectInstance = new Calculator(); // 把一个Calculator对象包装在ObjectDataProvider对象中
+            //odp.ObjectType = typeof(Calculator);
+            odp.MethodName = "Add"; //指定调用Calculator对象中的方法名
+            odp.MethodParameters.Add("0"); //告诉ObjectDataProvider对象调用具有两个string参数的Add方法
+            odp.MethodParameters.Add("0");
+
+            //以ObjectDataProvider 对象为Source创建Binding
+            Binding bingToArg1 = new Binding("MethodParameters[0]")
+            {
+                Source = odp,
+                //只负责从UI元素收集到的数据写入Source即odp，而不是内部包装的Calculator对象
+                BindsDirectlyToSource = true,
+                //一有更新立刻将值传回Source
+                UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged
+            };
+            Binding bingToArg2 = new Binding("MethodParameters[1]")
+            {
+                Source = odp,
+                BindsDirectlyToSource = true,
+                UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged
+            };
+            // 数据源本身作为Source
+            Binding bindingToResult = new Binding(".") { Source = odp };
+
+            //将Binding关联到UI元素上
+            this.arg1.SetBinding(TextBox.TextProperty, bingToArg1);
+            this.arg2.SetBinding(TextBox.TextProperty, bingToArg2);
+            this.res.SetBinding(TextBox.TextProperty, bindingToResult);
+        }
+    }
+}
+```
+
+效果：
+
+<img src="../TyporaImgs/image-20240417225829543.png" alt="image-20240417225829543" style="zoom:67%;" />
 
 ### 3.7、使用Binding的RelativeSource
 
+当一个 Binding 有明确的数据来源时我们可以通过为**Source或ElementName** 赋值的办法让Bindng 与之关联。有些时候我们**不能确定作为 Source 的对象叫什么名字**，但知道它与作为 Binding目标的对象在 UI 布局上有相对关系，比如控件自己关联自己的某个数据、关联自己某级容器的数据。这时候我们就要使用 Binding的 RelativeSource 属性。
+
+```html
+<Window x:Class="WPFBinding.RelativeSourceWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:WPFBinding"
+        mc:Ignorable="d"
+        Title="RelativeSource" Height="210" Width="210">
+    <Grid x:Name="g1" Background="Red" Margin="10">
+        <DockPanel x:Name="d1" Background="Orange" Margin="10">
+            <Grid x:Name="g2" Background="Yellow" Margin="10">
+                <DockPanel x:Name="d2" Background="LawnGreen" Margin="10">
+                    <TextBox x:Name="textBox1" FontSize="24" Margin="10"/>
+                </DockPanel>
+            </Grid>
+        </DockPanel>
+    </Grid>
+</Window>
+```
+
+```C#
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Documents;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Shapes;
+
+namespace WPFBinding
+{
+    /// <summary>
+    /// RelativeSource.xaml 的交互逻辑
+    /// </summary>
+    public partial class RelativeSourceWindow : Window
+    {
+        public RelativeSourceWindow()
+        {
+            InitializeComponent();
+
+            RelativeSource rs = new RelativeSource(RelativeSourceMode.FindAncestor);
+            //目标控件为起点的层级偏移量
+            rs.AncestorLevel = 1;
+            //找到这个类型的对象
+            rs.AncestorType = typeof(Grid);
+            Binding binding = new Binding("Name") { RelativeSource = rs };
+            this.textBox1.SetBinding(TextBox.TextProperty, binding);
+        }
+    }
+}
+```
+
+这段C#代码和下面的C#代码是等价的
+
+```html
+<TextBox x:Name="textBox1" FontSize="24" Margin="10" Text="{Binding RelativeSource=
+               {RelativeSource Mode=FindAncestor,
+               AncestorType={x:Type Grid},
+               AncestorLevel=1}
+               ,Path=Name}"/>
+```
+
+```C#
+//关联自身的Name属性
+RelativeSource rs2 = new RelativeSource(RelativeSourceMode.Self);
+Binding binding2 = new Binding("Name") { RelativeSource = rs };
+this.textBox1.SetBinding(TextBox.TextProperty, binding);
+```
+
+效果：
+
+**<img src="../TyporaImgs/image-20240418200142181.png" alt="image-20240418200142181" style="zoom:80%;" />**
+
 ## 4、Binding 对数据的转换与校验
 
-NuGet\Install-Package Prism.Wpf -Version 8.1.97
+Binding这座桥上可以设置关卡对数据的有效性进行检验（它的 ```ValidationRules``` 属性），不仅如此，当 Binding两端要求使用不同的数据类型时，我们还可以为数据设置转换器（它的```Converter```属性）。
+
+### 4.1 Binding 的数据校验
+
+Binding 进行校验时的默认行为是认为来自 Source 的数据总是正确的，只有来自 Target 的数据（因为 Target 多为 UI 控件，所以等价于用户输入的数据）才有可能有问题，为了不让有问题的数据污染 Source 所以需要校验。
+
+以slider为源，TextBox为目标
+
+```html
+<Window x:Class="WPFBinding.ValidationRuleWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:WPFBinding"
+        mc:Ignorable="d"
+        Title="ValidationRuleWindow" Height="200" Width="300">
+    <StackPanel>
+        <TextBox x:Name="textbox1" Background="LightBlue" Margin="5"/>
+        <Slider x:Name="slider1" Maximum="100" Minimum="0" Margin="5"/>
+    </StackPanel>
+</Window>
+```
+
+```C#
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Documents;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Shapes;
+
+namespace WPFBinding
+{
+    /// <summary>
+    /// ValidationRuleWindow.xaml 的交互逻辑
+    /// </summary>
+    public partial class ValidationRuleWindow : Window
+    {
+        public ValidationRuleWindow()
+        {
+            InitializeComponent();
+			//将slider1的value作为数据源
+            Binding binding = new Binding("Value") { Source = this.slider1};
+            //属性值变化时，修改binding绑定的值
+            binding.UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged;
+            //新建一个自定义的校验类对象，添加到binding中
+            RangeValidationRule rule = new RangeValidationRule();
+            binding.ValidationRules.Add(rule);
+            //将binding设置到textbox1的Text值
+            this.textbox1.SetBinding(TextBox.TextProperty, binding);
+        }
+    }
+    public class RangeValidationRule : ValidationRule
+    {
+        //实现 抽象类ValidationRule 的方法
+        public override ValidationResult Validate(object value, CultureInfo cultureInfo)
+        {
+            double d = 0;
+            if(double.TryParse(value.ToString(), out d))
+            {
+                if (d >= 0 && d <= 100) return new ValidationResult(true, null);
+            }
+            return new ValidationResult(false, "Validation Failed");
+        }
+    }
+}
+```
+
+```Binding binding = new Binding("Value") { Source = this.slider1};```默认是使用twoway双向的绑定，所以slider可以操作textbox的值，textbox的值也可以操作slider。当输入0到100之间的值时程序正常显示，但输入这个区间之外的值或不能被解析的值时 TextBox 会显示红色边框，表示值是错误的，不能把它传递给 Source。
+
+Binding 只在 Target 被外部方法更新时校验数据，而来自Binding的 Source 数据更新 Target 时是不会进行校验的。如果想改变这种行为，或者说当**来自 Source的数据也有可能出问题时**，我们就需要将校验条件的 ```ValidatesOnTargetUpdated``` 属性设为 true。
+
+现在模拟一下来自 Source的数据也有可能出问题情况：将slider的数据源范围改为
+
+```html
+<Slider x:Name="slider1" Minimum="-10" Maximum="110" Margin="5"/>
+```
+
+```C#
+ Binding binding = new Binding("Value") { Source = this.slider1};
+binding.UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged;
+RangeValidationRule rule = new RangeValidationRule();
+rule.ValidatesOnTargetUpdated = true; //增加这句
+binding.ValidationRules.Add(rule);
+this.textbox1.SetBinding(TextBox.TextProperty, binding);
+```
+
+效果：
+
+![image-20240418205640376](../TyporaImgs/image-20240418205640376.png)
+
+如果想讲校验错误时显示 ValidationResult 对象的错误信息，需要用到路由事件 Routed Event。
+
+首先，在创建 Binding 时要把 Binding 对象的 NotifyOnValidationError 属性设为true，这样，当数据校验失败的时候 Binding 会像报警器一样发出一个信号，这个信号会以 Binding 对象的 Target为起点在 UI元素树上传播。信号每到达一个结点，如果这个结点上设置有对这种信号的侦听器(事件处理器)，那么这个侦听器就会被触发用以处理这个信号。信号处理完后，程序员还可以选择是让信号继续向下传播还是就此终止——这就是路由事件，信号在UI 元素树上的传递过程就称为路由(Route)。
+
+```C#
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Documents;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Shapes;
+
+namespace WPFBinding
+{
+    /// <summary>
+    /// ValidationRuleWindow.xaml 的交互逻辑
+    /// </summary>
+    public partial class ValidationRuleWindow : Window
+    {
+        public ValidationRuleWindow()
+        {
+            InitializeComponent();
+
+            Binding binding = new Binding("Value") { Source = this.slider1};
+            binding.UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged;
+            RangeValidationRule rule = new RangeValidationRule();
+            rule.ValidatesOnTargetUpdated = true;
+            binding.ValidationRules.Add(rule);
+            //1、当校验失败时发出信号，并以textbox1为起点传播
+            binding.NotifyOnValidationError = true; 
+            this.textbox1.SetBinding(TextBox.TextProperty, binding);
+            //2、添加路由事件，当发现校验失败则调用自定义的事件处理器
+            this.textbox1.AddHandler(Validation.ErrorEvent, new RoutedEventHandler(this.MyValidationError));
+        }
+        //3、自定义侦听校验失败时的事件处理器
+        void MyValidationError(object sender, RoutedEventArgs e)
+        {
+            if (Validation.GetErrors(this.textbox1).Count > 0)
+            {
+                this.textbox1.ToolTip = Validation.GetErrors(this.textbox1)[0].ErrorContent.ToString();
+                
+            }
+         
+        }
+    }
+    //自定义的校验规则类
+    public class RangeValidationRule : ValidationRule
+    {
+        //实现 抽象类的 方法
+        public override ValidationResult Validate(object value, CultureInfo cultureInfo)
+        {
+            double d = 0;
+            if(double.TryParse(value.ToString(), out d))
+            {
+                if (d >= 0 && d <= 100) return new ValidationResult(true, null);
+            }
+            return new ValidationResult(false, "Validation Failed");
+        }
+    }
+    
+}
+```
+
+C# 代码中增加自定义侦听校验失败时的事件处理器 MyValidationError  以及如下代码：
+
+```C#
+//1、当校验失败时发出信号，并以textbox1为起点传播
+binding.NotifyOnValidationError = true; 
+//2、添加路由事件，当发现校验失败则调用自定义的事件处理器
+this.textbox1.AddHandler(Validation.ErrorEvent, new RoutedEventHandler(this.MyValidationError));
+```
+
+当校验失败时，鼠标悬停则会显示错误信息
+
+<img src="../TyporaImgs/image-20240418212158082.png" alt="image-20240418212158082" style="zoom:80%;" />
+
+### 4.2 Binding 的数据转换
+
+前面的很多例子中我们都使用 Binding 在 Slider 控件与 TextBox 控件之间建立关联--Slider控件作为Source(Path是Value 属性)，TextBox控件作为 Target(目标属性为 Text)。不知道大家有没有注意到，Slider 的Value 属性是 double类型值、TextBox的 Text 属性是 string 类型值，在 C#这种强类型(strong-typed)语言中却可以往来自如，这是怎么回事呢?
+
+原来，Binding还有另外一种机制称为数据转换(```DataConvert```)，当Source 端 Path 所关联的数据与 Target 端目标属性数据类型不一致时，我们可以添加数据转换器(DataConverter)。上面提到的问题实际上是 double 类型与 string 类型互相转换的问题，因为处理起来比较简单，所以 WPF 类库就自动替我们做了。但有些类型之间的转换就不是 WPF 能替我们做的了，例如下面这些情况:
+
+1. Source 里的数据是 Y、N 和X三个值(可能是 char 类型、string 类型或自定义枚举类型)，UI上对应的是CheckBox控件，需要把这三个值映射为它的IsChecked属性值(bool?类型)。
+2. 当 TextBox 里已经输入了文字时用于登录的 Button才会出现，这是string 类型与 Visibility枚举类型或 bool类型之间的转换(Binding的Mode 将是 OneWay)。
+3. Source里的数据可能是Male或Female(string或枚举)，UI上对应的是用于显示头像的Image 控件，这时候需要把 Source 里的值转换成对应的头像图片URI(亦是 OneWay)。
+
+当遇到这些情况时，我们只能自己动手写Converter，方法是创建一个类并让这个类实现IValueConverter接口。IValueConverter接口定义如下：
+
+```C#
+namespace System.Windows.Data
+{
+    public interface IValueConverter
+    {
+        object Convert(object value, Type targetType, object parameter, CultureInfo culture);
+        object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture);
+    }
+```
 
 
 
-这段代码中的TextBox为什么获取不到StackPanel.DataContext中的String
+当数据从 Binding的```Source 流向 Target 时，Convert 方法将被调用``` ；反之，```ConvertBack 方法将被调用```。
+
+这两个方法的参数列表一模一样：
+
+- 第一个参数为object，最大限度地保证了Converter的重用性(可以在方法体内对实际类型进行判断)
+- 第二个参数用于确定方法的返回类型(个人认为形参名字叫 outputType 比 targetType 要好，可以避免与 Binding 的 Target 混淆)
+- 第三个参数用于把额外的信息传入方法，若需要传递多个信息则可把信息放入一个集合对象来传入方法。
+
+Binding对象的 Mode 属性会影响到这两个方法的调用：
+
+- 如果Mode为TwoWay 或 Default 行为与TwoWay一致则两个方法都有可能被调用
+- 如果Mode为OneWay或 Default 行为与 OneWay一致则只有 Convert 方法会被调用
+
+## 5、MultiBinding（多路Binding）
+
+
+
+
+

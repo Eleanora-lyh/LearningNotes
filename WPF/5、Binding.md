@@ -1592,9 +1592,356 @@ Binding对象的 Mode 属性会影响到这两个方法的调用：
 - 如果Mode为TwoWay 或 Default 行为与TwoWay一致则两个方法都有可能被调用
 - 如果Mode为OneWay或 Default 行为与 OneWay一致则只有 Convert 方法会被调用
 
+下面的事例定义了一个类Logo，将ShapeType属性的类型EnumShapeType转为图片，State属性的类型EnumShapeType转为checkbox的勾选情况：
+
+```C#
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace WPFBinding.Entity
+{
+
+    public class Logo
+    {
+        /// <summary>
+        /// 映射为心形或五角星的图标
+        /// </summary>
+        public EnumShapeType ShapeType { get; set; } 
+        /// <summary>
+        /// 名称
+        /// </summary>
+        public string Name {  get; set; }
+        /// <summary>
+        /// 映射为CheckBox
+        /// </summary>
+        public EnumState State { get; set; }
+    }
+    public enum EnumShapeType
+    {
+        /// <summary>
+        /// 心形
+        /// </summary>
+        HEART,
+        /// <summary>
+        /// 五角星
+        /// </summary>
+        STAR
+    }
+    public enum EnumState
+    {
+        AVAILABLE,
+        LOCKED,
+        UNKNOW
+    }
+}
+```
+
+xmal
+
+```html
+<Window x:Class="WPFBinding.DataConverterWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:WPFBinding"
+        mc:Ignorable="d"
+        Title="DataConverterWindow" Height="266" Width="300">
+    <Window.Resources>
+        <local:ShapeTypeToSouceConverter x:Key="typeConvert"/>
+        <local:StateToNullableBoolConverter x:Key="stateConvert"/>
+    </Window.Resources>
+    <StackPanel Background="LightBlue">
+        <ListBox x:Name="listBoxLogo" Height="160" Margin="5">
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <StackPanel Orientation="Horizontal">
+                        <Image Width="20" Height="20" Source="{Binding Path=ShapeType,
+                               Converter={StaticResource typeConvert}}"/>
+                        <TextBlock Text="{Binding Path=Name}" Width="60"
+                                   Margin="80,0"/>
+                        <CheckBox IsThreeState="True" IsChecked="{Binding
+                                  Path=State,Converter={StaticResource stateConvert}}"/>
+                    </StackPanel>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+        <Button x:Name="buttonLoad" Content="Load" Height="25" Margin="5,0" Click="buttonLoad_Click"/>
+        <Button x:Name="buttonSave" Content="Save" Height="25" Margin="5,5" Click="buttonSave_Click"/>
+    </StackPanel>
+</Window>
+
+```
+
+.cs
+
+```C#
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Documents;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Shapes;
+using Microsoft.Extensions.Primitives;
+using WPFBinding.Entity;
+using Path = System.IO.Path;
+
+namespace WPFBinding
+{
+    /// <summary>
+    /// DataConverterWindow.xaml 的交互逻辑
+    /// </summary>
+    public partial class DataConverterWindow : Window
+    {
+        public DataConverterWindow()
+        {
+            InitializeComponent();
+        }
+        /// <summary>
+        /// 点击load后加载数据
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void buttonLoad_Click(object sender, RoutedEventArgs e)
+        {
+            //初始化数据
+            List<Logo> logos = new List<Logo>()
+            {
+                new Logo() { ShapeType = EnumShapeType.STAR, Name = "star1", State = EnumState.AVAILABLE },
+                new Logo() { ShapeType = EnumShapeType.STAR, Name = "star2", State = EnumState.UNKNOW },
+                new Logo() { ShapeType = EnumShapeType.HEART, Name = "heart1", State = EnumState.UNKNOW },
+                new Logo() { ShapeType = EnumShapeType.STAR, Name = "star3", State = EnumState.UNKNOW },
+                new Logo() { ShapeType = EnumShapeType.HEART, Name = "heart2", State = EnumState.UNKNOW },
+                new Logo() { ShapeType = EnumShapeType.HEART, Name = "heart3", State = EnumState.UNKNOW }
+            };
+            this.listBoxLogo.ItemsSource = logos;
+        }
+        /// <summary>
+        /// 把用户更改过的数据写入文件
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void buttonSave_Click(object sender, RoutedEventArgs e)
+        {
+            var sb = new StringBuilder();
+            //列表中显示的数据写入目标txt文件中
+            foreach (Logo l in listBoxLogo.Items)
+            {
+                sb.Append($@"ShapeType = {l.ShapeType}, Name = {l.Name}, State = {l.State}");
+                sb.Append("\n");
+            }
+            // 获取当前应用程序域的基目录（通常是 WPF 项目的根目录）
+            string path = @"E:\.netCode\Projects\mypro\WPF\WPFBinding\Files\logoList.txt";
+            // 写入文件
+            File.WriteAllText(path, sb.ToString());
+        }
+    }
+    /// <summary>
+    /// 将图片的类型Enum值转为图片的绝对路径，放在image标签中作为数据源
+    /// </summary>
+    public class ShapeTypeToSouceConverter : IValueConverter
+    {
+        //项目目录，用于定位图片位置
+        private readonly string _basePath = @"E:\.netCode\Projects\mypro\WPF\WPFBinding\WPFBinding";
+        //Category转为Uri
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            EnumShapeType ca = (EnumShapeType)value;
+            switch (ca)
+            {
+                case EnumShapeType.STAR:
+                    return _basePath + @"\imgs\star.png";
+                case EnumShapeType.HEART:
+                    return _basePath + @"\imgs\heart.png";
+                default: return null;
+            }
+            //throw new NotImplementedException();
+        }
+        //不会被调用
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            throw new NotImplementedException();
+        }
+    }
+    /// <summary>
+    /// 将图片的状态Enum值转为checkbox的勾选情况，放在checkbox中作为数据源
+    /// </summary>
+    public class StateToNullableBoolConverter : IValueConverter
+    {
+        //将state转为bool?
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            EnumState s = (EnumState)value;
+            switch (s)
+            {
+                case EnumState.AVAILABLE:
+                    return true;
+                case EnumState.LOCKED:
+                    return false;
+                case EnumState.UNKNOW:
+                default: return null;
+            }
+            //throw new NotImplementedException();
+        }
+        //将bool?转为state
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            bool? b = (bool?)value;
+            switch (b)
+            {
+                case true:
+                    return EnumState.AVAILABLE;
+                case false:
+                    return EnumState.LOCKED;
+                case null:
+                default: return EnumState.UNKNOW;
+            }
+            //throw new NotImplementedException();
+        }
+    }
+}
+```
+
+效果：
+
+![image-20240419234534563](../TyporaImgs/image-20240419234534563.png)
+
 ## 5、MultiBinding（多路Binding）
 
+有的时候 UI 要需要显示的信息**由不止一个数据来源**决定，这时候就需要使用 ```MultiBinding```，即多路 Binding。MultiBinding与 Binding 一样均以 BindingBase 为基类，也就是说，凡是能使用Binding 对象的场合都能使用 MultiBinding。MultiBinding 具有一个名为 Bindings 的属性，其类型是Collection<BindingBase>，通过这个属性 MultiBinding 把一组 Binding 对象聚合起来，处在这个集合中的 Binding 对象可以拥有自己的数据校验与转换机制，它们汇集起来的数据将共同决定传往MultiBinding目标的数据，如下：
 
+<img src="../TyporaImgs/image-20240420093425555.png" alt="image-20240420093425555" style="zoom:67%;" />
 
+1. **设置统一的边距值**：可以直接为 Margin 属性指定一个统一的边距值，例如 `Margin="5"` 表示上下左右均为 5 个单位长度的边距
+2. **分别设置每个方向的边距值**：可以为 Margin 属性指定四个值，分别表示上、右、下、左的边距值。例如 `Margin="5,10,5,10"` 表示上边距为 5，右边距为 10，下边距为 5，左边距为 10。C#中可以设置边距`textBox.Margin = new Thickness(5);``
+3. ``Margin="5,0"` 表示在文本框周围设置边距，其中第一个值 5 表示上下边距为 5 个单位长度，而第二个值 0 表示左右边距为 0。
 
+详情参考MSDN：https://learn.microsoft.com/zh-cn/windows/apps/design/layout/alignment-margin-padding
 
+![image-20240420101059806](../TyporaImgs/image-20240420101059806.png)
+
+现在实现一个这样的需求：
+
+第一、二个 TextBox 输入用户名，要求内容一致。第三、四个 TextBox 输入用户 E-Mail，要求内容一致。当TextBox的内容全部符合要求的时候，Button可用。
+
+xmal代码：
+
+```html
+<Window x:Class="WPFBinding.MultibindingWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:WPFBinding"
+        mc:Ignorable="d"
+        Title="MultibindingWindow" Height="185" Width="300">
+    <StackPanel Background="LightBlue">
+        <TextBox x:Name="textbox1" Height="23" Margin="5"/>
+        <TextBox x:Name="textbox2" Height="23" Margin="5,0"/>
+        <TextBox x:Name="textbox3" Height="23" Margin="5"/>
+        <TextBox x:Name="textbox4" Height="23" Margin="5,0"/>
+        <Button x:Name="button1" Content="Submit" Width="80" Margin="5"/>
+    </StackPanel>
+</Window>
+```
+
+.cs
+
+```C#
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Documents;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Shapes;
+
+namespace WPFBinding
+{
+    /// <summary>
+    /// Multibinding.xaml 的交互逻辑
+    /// </summary>
+    public partial class MultibindingWindow : Window
+    {
+        public MultibindingWindow()
+        {
+            InitializeComponent();
+            //设置四个text的multibinding关系
+            SetMultiBinding();
+        }
+        private void SetMultiBinding()
+        {
+            //1、分别设置四个textbox的Text属性的Binding
+            Binding b1 = new Binding("Text") { Source = this.textbox1 };
+            Binding b2 = new Binding("Text") { Source = this.textbox2 };
+            Binding b3 = new Binding("Text") { Source = this.textbox3 };
+            Binding b4 = new Binding("Text") { Source = this.textbox4 };
+
+            //将4个binding赋值Multibinding对象
+            MultiBinding mb = new MultiBinding() { Mode = BindingMode.OneWay }; //单向绑定
+            mb.Bindings.Add(b1); //Multibinding对Add得到顺序敏感
+            mb.Bindings.Add(b2);
+            mb.Bindings.Add(b3);
+            mb.Bindings.Add(b4);
+            //四个textbox是否有值 转为按钮是否可用的true和false
+            mb.Converter = new LogonMultiBindingConverter();
+
+            //将按钮是否可用属性与MultiBinding的值绑定
+            this.button1.SetBinding(Button.IsEnabledProperty, mb);
+        }
+    }
+    /// <summary>
+    /// 将 四个textbox是否有值 转为按钮是否可用的true和false
+    /// </summary>
+    public class LogonMultiBindingConverter : IMultiValueConverter
+    {
+        public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
+        {
+            if(!values.Cast<string>().Any(x=>string.IsNullOrEmpty(x))
+                && values[0].ToString() == values[1].ToString() //两次用户名是否相同
+                && values[2].ToString() == values[3].ToString())//两次邮箱是否相同
+            {
+                return true;
+            }
+            else
+            {
+                return false;
+            }
+        }
+        //不会被调用
+        public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture)
+        {
+            throw new NotImplementedException();
+        }
+    }
+}
+```
+
+效果：
+
+![image-20240420102753969](../TyporaImgs/image-20240420102753969.png)
+
+## 6、小结
+
+WPF 的核心理念是变传统的 U驱动程序为数据驱动 U，支撑这个理念的基础就是本章讲述的 Data Binding 和与之相关的数据校验与转换。在使用 Binding 时，最重要的事情就是准确地设置它的源和路径。
+
+当学习完 Binding后，我们迎来了新的问题-为什么WPF里的元素可以通过 Binding关联到数据上，实时关注数据的变化呢？换句话说，什么样的对象才能作为Binding的目标来使用呢？这就是我们下一章要详细讲述的内容--**依赖属性与依赖对象**。

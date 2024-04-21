@@ -651,13 +651,223 @@ DependencyObject和DependencyProperty两个类是 WPF属性系统的核心，本
 
 ## 1.3、附加属性
 
+理解了依赖属性后，再来讨论一下附加属性。顾名思义，附加属性是说一个属性本来不属于某个对象,但由于某种需求而被后来附加上。也就是把对象放入一个特定环境后对象才具有的属性（·表现出来就是被环境赋予的属性）就称为附加属性(AtachedProperties)。
 
+作为 TextBox 控件的设计者，他不可能知道控件发布后程序员是把它放在Grid里还是Canvas里(甚至是以后版本将推出的新布局里)，所以他也不可能为TextBox准备诸如Column、Row 或者 Left、Top这类属性，那么干脆让`布局来决定一个 TextBox用什么属性来设置它的位置`！
 
-NuGet\Install-Package Prism.Wpf -Version 8.1.97
+- 放在Grid 里就让 Grid 为它附加上 Column 和 Row 属性
+- 放在 Canvas 里就让 Canvas 为它附加上 Top、Left 等属性
+- 放在DockPanel里就让 DockPanel为它附加Dock属性。
 
+可见，附加属性的作用就是将属性与数据类型(宿主)解耦，让数据类型的设计更加灵活。
 
+理解了附加属性的含义，我们开始研究附加属性的声明、注册和使用。附加属性的本质就是依赖属性，二者仅在注册和包装器上有一点区别。前面说过，VisualStudio2008用于快速创建依赖属性的 snippet是propdp，现在我们要使用另一个snippet是propa，这个snippet用于快速创建附加属性。
 
-这段代码中的TextBox为什么获取不到StackPanel.DataContext中的String
+### 1.3.1 附加属性的使用方式
+
+以人在学校里会获得年级和班级两个属性为例，我们来体验自定义附加属性。人放在学校里会获得年级和班级两个属性说明年级和班级两个属性是由学校附加给人的，因此，这两个属性的真实所有者(宿主)应该是学校。我们准备一个名为`School`的类，一个名为`Teenager`的类，并让它们继承DependencyObject类，然后把光标定位于类体中(花括号之间)，输入propa连按两下 Tab键，一个附加属性的框架就准备好了。继续按动 Tab 键可以在几个空缺间轮换并修改，直至按下Enter键。
+
+```C#
+namespace PropertyLearning.Entity
+{
+    public class School : DependencyObject
+    {
+        public static int GetGrade(DependencyObject obj)
+        {
+            return (int)obj.GetValue(GradeProperty);
+        }
+
+        public static void SetGrade(DependencyObject obj, int value)
+        {
+            obj.SetValue(GradeProperty, value);
+        }
+
+        // Using a DependencyProperty as the backing store for MyGrade.  This enables animation, styling, binding, etc...
+        public static readonly DependencyProperty GradeProperty =
+            DependencyProperty.RegisterAttached("MyGrade", typeof(int), typeof(School), new PropertyMetadata(0));
+    }
+    public class Teenager : DependencyObject
+    {
+        
+    }
+}
+```
+
+唯一的不同就是注册附加属性使用的是名为RegisterAttached的方法，但参数却与使用Register 方法无异。xmal代码如下：
+
+```html
+<Window x:Class="PropertyLearning._2AttachProperty"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:PropertyLearning"
+        mc:Ignorable="d"
+        Title="_2AttachProperty" Height="250" Width="300">
+    <StackPanel>
+        <Button x:Name="button1" Content="Grade" Click="button1_Click" Margin="5"/>
+    </StackPanel>
+</Window>
+```
+
+效果：
+
+<img src="../TyporaImgs/image-20240421193420935.png" alt="image-20240421193420935" style="zoom:70%;" />
+
+### 1.3.2 grid表格：xmal和C#代码实现相同的效果
+
+<img src="../TyporaImgs/image-20240421194740197.png" alt="image-20240421194740197" style="zoom:50%;" />
+
+```html
+<Window x:Class="PropertyLearning._2AttachProperty2"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:PropertyLearning"
+        mc:Ignorable="d"
+        Title="_2AttachProperty2" Height="200" Width="400">
+    <Grid ShowGridLines="True">
+        <Grid.RowDefinitions>
+            <RowDefinition/>
+            <RowDefinition/>
+            <RowDefinition/>
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition/>
+            <ColumnDefinition/>
+            <ColumnDefinition/>
+        </Grid.ColumnDefinitions>
+        <Button Content="OK" Grid.Row="1" Grid.Column="1"/>
+    </Grid>
+</Window>
+```
+
+与之等效的C#代码如下：
+
+xmal：
+
+```html
+<Window x:Class="PropertyLearning._3GridTable"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:PropertyLearning"
+        mc:Ignorable="d"
+        Title="_3GridTable" Height="200" Width="400">
+   
+</Window>
+```
+
++C#代码：
+
+```C#
+namespace PropertyLearning
+{
+    /// <summary>
+    /// _2AttachProperty2.xaml 的交互逻辑
+    /// </summary>
+    public partial class _3GridTable : Window
+    {
+        public _3GridTable()
+        {
+            InitializeComponent();
+            Grid grid = new Grid();
+            //增加三行
+            for (int i = 0; i < 3; i++)
+            {
+                grid.RowDefinitions.Add(new RowDefinition());
+            }
+            //增加三列
+            for (int i = 0; i < 3; i++)
+            {
+                grid.ColumnDefinitions.Add(new ColumnDefinition());
+            }
+            //设置按钮在1行1列
+            Button button = new Button() { Content = "OK" };
+            Grid.SetRow(button, 1);
+            Grid.SetColumn(button, 1);
+            //将按钮放在grid的下一层
+            grid.Children.Add(button);
+            //最外层是grid
+            this.Content = grid;
+        }
+    }
+}
+```
+
+### 1.3.3 附件属性的Binding使用方式
+
+现在我们已经知道如何在 XAML和 C#代码中直接为附加属性赋值，不过别忘了，附加属性的本质是依赖属性——附加属性也可以使用 Binding 依赖在其他对象的数据上。
+
+请看下面这个例子：窗体使用Canvas布局，两个Slider 用来 控制矩形在 Canvas 中的横纵坐标
+
+```html
+<Window x:Class="PropertyLearning._4AttachPropertyBinding"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:PropertyLearning"
+        mc:Ignorable="d"
+        Title="_4AttachPropertyBinding" Height="300" Width="300">
+    <Canvas>
+        <Slider x:Name="sliderX" Canvas.Top="10" Canvas.Left="10" Width="260" Minimum="10" Maximum="230"/>
+        <Slider x:Name="sliderY" Canvas.Top="40" Canvas.Left="10" Width="260" Minimum="70" Maximum="200"/>
+        <Rectangle x:Name="rec" Fill="LightSkyBlue" Width="30" Height="30"
+                   Canvas.Left="{Binding  ElementName=sliderX,Path=Value}"
+                   Canvas.Top="{Binding ElementName=sliderY,Path=Value}"/>
+    </Canvas>
+</Window>
+```
+
+与之等效的C#代码如下：
+
+xmal：
+
+```html
+<Window x:Class="PropertyLearning._4AttachPropertyBinding"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:PropertyLearning"
+        mc:Ignorable="d"
+        Title="_4AttachPropertyBinding" Height="300" Width="300">
+    <Canvas>
+        <Slider x:Name="sliderX" Canvas.Top="10" Canvas.Left="10" Width="260" Minimum="10" Maximum="230"/>
+        <Slider x:Name="sliderY" Canvas.Top="40" Canvas.Left="10" Width="260" Minimum="70" Maximum="200"/>
+        <Rectangle x:Name="rec" Fill="LightSkyBlue" Width="30" Height="30"/>
+    </Canvas>
+</Window>
+```
+
++C#代码：
+
+```c#
+namespace PropertyLearning
+{
+    /// <summary>
+    /// _4AttachPropertyBinding.xaml 的交互逻辑
+    /// </summary>
+    public partial class _4AttachPropertyBinding : Window
+    {
+        public _4AttachPropertyBinding()
+        {
+            InitializeComponent();
+            this.rec.SetBinding(Canvas.LeftProperty, new Binding("Value") { Source = sliderX });
+            this.rec.SetBinding(Canvas.LeftProperty, new Binding("Value") { Source = sliderX });
+        }
+    }
+}
+```
+
+效果：
+
+<img src="../TyporaImgs/rectangle.gif" style="zoom:70%;" />
+
+由此可见，在使用 Binding时除了宿主类型稍有不同外没有任何区别。
 
 # 2、事件
 
@@ -678,3 +888,5 @@ NuGet\Install-Package Prism.Wpf -Version 8.1.97
 ### 2.3.1、RoutedEventArgs的Source与OriginalSource
 
 ### 2.3.1、附加事件
+
+NuGet\Install-Package Prism.Wpf -Version 8.1.97

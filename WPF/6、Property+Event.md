@@ -78,7 +78,7 @@
 1. 节省实例对内存的开销。
 2. 属性值可以通过 Binding 依赖在其他对象上。
 
-### 1.1.1 依赖属性对内存的使用方式
+### 1.2.1 依赖属性对内存的使用方式
 
 依赖属性较之 CLR属性在内存使用方面迴然不同。前面已经说过，实例的每个CLR属性都包装着一个非静态的字段(或者说由一个非静态的字段在后台支持)，思考这样一个问题：TextBox有138个属性，假设每个CLR属性都包装着一个4字节的字段，如果程序运行的时候创建了10列1000行的一个TextBox列表，那么这些字段将占用4*138*10*1000~5.26M内存！在这一百多个属性中，最常用的也就是 Text属性，这就意味着大多数内存都会被浪费掉。
 
@@ -108,7 +108,7 @@ DependencyObject是 WPF 系统中相当底层的一个基类，如下：
 
 从这棵继承树上可以看出，WPF的所有UI 控件都是依赖对象。WPF的类库在设计时充分利用了依赖属性的优势，UI 控件的绝大多数属性都已经依赖化了。
 
-### 1.1.2 声明和使用依赖属性
+### 1.2.2 声明和使用依赖属性
 
 1）体现依赖属性作为属性的功能：
 
@@ -122,8 +122,8 @@ namespace PropertyLearning.Entity
         /// <summary>
         /// 声明一个依赖属性StudnetNameProperty
         /// </summary>
-        public static readonly DependencyProperty StudnetNameProperty =
-            DependencyProperty.Register("StudnetName", typeof(string), typeof(Student));
+        public static readonly DependencyProperty StudentNameProperty =
+            DependencyProperty.Register("StudentName", typeof(string), typeof(Student));
     }
 }
 ```
@@ -165,8 +165,8 @@ namespace PropertyLearning
         private void Button_Click(object sender, RoutedEventArgs e)
         {
             Student stu = new Student();
-            stu.SetValue(Student.StudnetNameProperty, this.textbox1.Text);
-            textbox2.Text = (string) stu.GetValue(Student.StudnetNameProperty);
+            stu.SetValue(Student.StudentNameProperty, this.textbox1.Text);
+            textbox2.Text = (string) stu.GetValue(Student.StudentNameProperty);
         }
     }
 }
@@ -200,12 +200,12 @@ namespace PropertyLearning
             //将 textbox1的Text值绑定到textbox2的Text属性上
             //textbox2.SetBinding(TextBox.TextProperty, binding);
             //设置绑定的目标为stu实例 的 StudnetNameProperty
-            BindingOperations.SetBinding(stu,Student.StudnetNameProperty,binding);
+            BindingOperations.SetBinding(stu,Student.StudentNameProperty,binding);
         }
         // 点击按钮后获取stu实例的值，并在messagebox 中显示
         private void Button_Click(object sender, RoutedEventArgs e)
         {
-            MessageBox.Show(stu.GetValue(Student.StudnetNameProperty).ToString());
+            MessageBox.Show(stu.GetValue(Student.StudentNameProperty).ToString());
         }
     }
 }
@@ -219,13 +219,13 @@ namespace PropertyLearning
 
 已知继承关系如下：DependencyObject——》Viusal——》UIElement——》FrameworkElement——》具体布局控件
 
-Student 继承自 DependencyObject，DependencyObject的实例对象中没有SetBinding方法，要到FrameworkElement这层的实例对象才能使用SetBinding方法。这时可以使用静态类BindingOperations.SetBinding方法，此方法可以对DependencyObject对象设置数据绑定。
+Student 继承自 DependencyObject，DependencyObject的实例对象中没有SetBinding方法，要到FrameworkElement这层的实例对象才能使用SetBinding方法。这时Student可以使用静态类BindingOperations.SetBinding方法，此方法可以对DependencyObject对象设置数据绑定。
 
 这侧面传递了一个思想，微软希望SetBinding的的目标对象是UI元素。
 
-FrameworkElement这层的SetBinding实际上是对BindingOperation类的的SetBinding做了封装。
+FrameworkElement这层的SetBinding实际上是对BindingOperation类的静态方法SetBinding做了封装。
 
-现在我们使用的依赖属性依靠 `SetValue 和 GetValue 两个方法进行对外界的暴露`，而且在使用 GetValue 的时候还需要进行一次数据类型的转换，因此，大多数情况下我们会为依赖属性添加一个CRL属性外包装（将DependencyObject的GetValue、SetValue方法封装在属性值的get、set方法中）
+现在我们使用的依赖属性依靠 `SetValue 和 GetValue 两个方法进行对外界的暴露`，而且在使用 GetValue 的时候还需要进行一次数据类型的转换（比较麻烦），因此，大多数情况下我们会为依赖属性添加一个CRL属性外包装（将DependencyObject的GetValue、SetValue方法封装在属性值的get、set方法中）
 
 ```C#
 namespace PropertyLearning.Entity
@@ -236,18 +236,18 @@ namespace PropertyLearning.Entity
         {
             get
             {
-                return (string)GetValue(StudnetNameProperty);
+                return (string)GetValue(StudentNameProperty);
             }
             set 
             { 
-                SetValue(StudnetNameProperty, value);
+                SetValue(StudentNameProperty, value);
             }
         }
         /// <summary>
         /// 声明一个依赖属性StudnetNameProperty
         /// </summary>
-        public static readonly DependencyProperty StudnetNameProperty =
-            DependencyProperty.Register("StudnetName", typeof(string), typeof(Student));
+        public static readonly DependencyProperty StudentNameProperty =
+            DependencyProperty.Register("StudentName", typeof(string), typeof(Student));
     }
 }
 ```
@@ -255,8 +255,8 @@ namespace PropertyLearning.Entity
 这样取值、赋值的时候代码就可以简化为如下形式，CLR依赖属性的使用就和一般的属性一样了
 
 ```C#
-stu.SetValue(Student.StudnetNameProperty, this.textbox1.Text);
-textbox2.Text = (string)stu.GetValue(Student.StudnetNameProperty);
+stu.SetValue(Student.StudentNameProperty, this.textbox1.Text);
+textbox2.Text = (string)stu.GetValue(Student.StudentNameProperty);
 //变为
 stu.StudentName = this.textbox1.Text;
 textbox2.Text = stu.StudentName;
@@ -264,7 +264,7 @@ textbox2.Text = stu.StudentName;
 
 我们知道，依赖对象可以通过 Binding依赖在其他对象上，即`依赖对象是作为数据的目标`而存在的。现在，我们为依赖对象的依赖属性添加了CLR属性包装，有了这个包装，就相当于为依赖对象准备了用于暴露数据的 BindingPath，也就是说，现在的依赖对象已经具备了扮演数据源和数据目标双重角色的能力。值得注意的是，`尽管Student类没有实现INotifyPropertyChanged 接口，当属性的值发生改变时与之关联的 Binding对象依然可以得到通知，依赖属性默认带有这样的功能`，天生就是合格的数据源。
 
-
+下面的例子就实现了依赖属性StudentName既做Target又做Source的效果，将textbox1的值绑定到依赖属性StudentName中，依赖属性StudentName又作为源绑定到textbox2的Target上
 
 ```C#
 namespace PropertyLearning.Entity
@@ -336,7 +336,318 @@ namespace PropertyLearning
 
 <img src="../TyporaImgs/image-20240420154115747.png" alt="image-20240420154115747" style="zoom:80%;" />
 
-### 1.1.3 属性依赖值存取的秘密
+这里有个小技巧：
+
+当输入`propdp（全称 Property Dependency）`后 两下Tab就会提示出生成的依赖属性的声明如下：
+
+```c#
+public int MyProperty
+{
+    get { return (int)GetValue(MyPropertyProperty); }
+    set { SetValue(MyPropertyProperty, value); }
+}
+
+// Using a DependencyProperty as the backing store for MyProperty.  This enables animation, styling, binding, etc...
+public static readonly DependencyProperty MyPropertyProperty =
+    DependencyProperty.Register("MyProperty", typeof(int), typeof(ownerclass), new PropertyMetadata(0));
+```
+
+由snippet 自动生成的代码中，DependencyProperty.Register 使用的是带4个参数的重载，前3个参数与我们前面介绍的一致，第4个参数的类型是PropertyMetadata类。第4个参数的作用是给依赖属性的 DefaultMetadata 属性赋值。顾名思义，DefaultMetadata的作用是向依赖属性的调用者提供一些基本信息，这些信息包括:
+
+- CoerceValueCallback：依赖属性值被强制改变时此委托会被调用，此委托可关联一个影响函数。
+- DefaultValue：依赖属性未被显式赋值时，若读取之则获得此默认值，不设此值会抛出异常
+- IsSealed：控制 PropertyMetadata的属性值是否可以更改，默认值为true。
+- PropertyChangedCallback:依赖属性的值被改变之后此委托会被调用，此委托可关联一个影响函数。
+
+需要注意的是，依赖属性的 DefaultMetadaa 只能通过 Register 方法的第 4个参数进行赋值，而且一旦赋值就不能改变(DefaultMetadata 是个只读属性)。如果想用新的 PropcrtyMctadata 替换这个默认的 Metadata，需要使用DependencyProperty.OverrideMetadata方法.
+
+### 1.2.3 属性依赖值存取的秘密
+
+#### 1) DependencyProperty.Register 源码分析
+
+DependencyProperty的源码：https://referencesource.microsoft.com/#WindowsBase/Base/System/Windows/DependencyProperty.cs,4a20845df0b86ddd
+
+DependencyProperty类的源码如下：
+
+```C#
+private static Hashtable PropertyFromName = new Hashtable();
+/// <summary>
+///     Register a Dependency Property
+/// </summary>
+/// <param name="name">Name of property</param>
+/// <param name="propertyType">Type of the property</param>
+/// <param name="ownerType">Type that is registering the property</param>
+/// <returns>Dependency Property</returns>
+public static DependencyProperty Register(string name, Type propertyType, Type ownerType)
+{
+    // Forwarding
+    return Register(name, propertyType, ownerType, null, null);
+}
+```
+
+`Register(name, propertyType, ownerType, null, null); ` 调用了下面的方法
+
+```C#
+/// <summary>
+///     Register a Dependency Property
+/// </summary>
+/// <param name="name">Name of property</param>
+/// <param name="propertyType">Type of the property</param>
+/// <param name="ownerType">Type that is registering the property</param>
+/// <param name="typeMetadata">Metadata to use if current type doesn't specify type-specific metadata</param>
+/// <param name="validateValueCallback">Provides additional value validation outside automatic type validation</param>
+/// <returns>Dependency Property</returns>
+public static DependencyProperty Register(string name, Type propertyType, Type ownerType, PropertyMetadata typeMetadata, ValidateValueCallback validateValueCallback)
+{
+    //检验参数是否为空
+    RegisterParameterValidation(name, propertyType, ownerType);
+
+    // Register an attached property
+    PropertyMetadata defaultMetadata = null;
+    if (typeMetadata != null && typeMetadata.DefaultValueWasSet())
+    {
+        defaultMetadata = new PropertyMetadata(typeMetadata.DefaultValue);
+    }
+
+    DependencyProperty property = RegisterCommon(name, propertyType, ownerType, defaultMetadata, validateValueCallback);
+
+    if (typeMetadata != null)
+    {
+        // Apply type-specific metadata to owner type only
+        property.OverrideMetadata(ownerType, typeMetadata);
+    }
+
+    return property;
+}
+```
+
+`DependencyProperty property = RegisterCommon(name, propertyType, ownerType, defaultMetadata, validateValueCallback);` 这句又调用了下面的方法
+
+```C#
+private static DependencyProperty RegisterCommon(string name, Type propertyType, Type ownerType, PropertyMetadata defaultMetadata, ValidateValueCallback validateValueCallback)
+{
+    FromNameKey key = new FromNameKey(name, ownerType);
+    lock (Synchronized)
+    {
+        if (PropertyFromName.Contains(key))
+        {
+            throw new ArgumentException(SR.Get(SRID.PropertyAlreadyRegistered, name, ownerType.Name));
+        }
+    }
+
+    // Establish default metadata for all types, if none is provided
+    if (defaultMetadata == null)
+    {
+        defaultMetadata = AutoGeneratePropertyMetadata( propertyType, validateValueCallback, name, ownerType );
+    }
+    else // Metadata object is provided.
+    {
+        // If the defaultValue wasn't specified auto generate one
+        if (!defaultMetadata.DefaultValueWasSet())
+        {
+            defaultMetadata.DefaultValue = AutoGenerateDefaultValue(propertyType);
+        }
+
+        ValidateMetadataDefaultValue( defaultMetadata, propertyType, name, validateValueCallback );
+    }
+
+    // Create property
+    DependencyProperty dp = new DependencyProperty(name, propertyType, ownerType, defaultMetadata, validateValueCallback);
+
+    // Seal (null means being used for default metadata, calls OnApply)
+    defaultMetadata.Seal(dp, null);
+
+    if (defaultMetadata.IsInherited)
+    {
+        dp._packedData |= Flags.IsPotentiallyInherited;
+    }
+
+    if (defaultMetadata.UsingDefaultValueFactory)
+    {
+        dp._packedData |= Flags.IsPotentiallyUsingDefaultValueFactory;
+    }
+
+
+    // Map owner type to this property
+    // Build key
+    lock (Synchronized)
+    {
+        PropertyFromName[key] = dp;
+    }
+
+
+    if( TraceDependencyProperty.IsEnabled )
+    {
+        TraceDependencyProperty.TraceActivityItem(
+            TraceDependencyProperty.Register,
+            dp,
+            dp.OwnerType );
+    }
+
+
+    return dp;
+}
+```
+
+RegisterCommon方法的第一句就是`FromNameKey key = new FromNameKey(name, ownerType);` FromNameKey 的构造方法如下：除了传入的参数name和ownerType外，还使用了name作为参数override了GetHashCode方法：
+
+```C#
+
+public FromNameKey(string name, Type ownerType)
+{
+    _name = name;
+    _ownerType = ownerType;
+
+    _hashCode = _name.GetHashCode() ^ _ownerType.GetHashCode();
+}
+```
+
+也就是说register中的参数name、ownerType在`FromNameKey key = new FromNameKey(name, ownerType);` 后经历了hash code的异或运算，存入了key中
+
+阅读下面 RegisterCommon 的关键语句，可以得出这么个过程：
+
+1. 当尝试使用同一个CLR属性名字(name)和同一个宿主类型(ownerType)进行注册，`if (PropertyFromName.Contains(key))`就会检测到，同时抛出异常。
+2. 检查是否提供了PropertyMetadate参数，没有则new一个
+3. new 一个 DependencyProperty 对象 dp
+4. ` PropertyFromName[key] = dp;` 注册到HashTable中（Hashtable会自动调用key的GetHashcode方法获取其hashcode）
+
+```C#
+//检查是否使用同一个CLR属性名字(name)和同一个宿主类型(ownerType)进行注册
+if (PropertyFromName.Contains(key))
+{
+    throw new ArgumentException(SR.Get(SRID.PropertyAlreadyRegistered, name, ownerType.Name));
+}
+// 检查是否提供了PropertyMetadate，没有则new一个
+//使用new来创建一个DependencyProperty
+DependencyProperty dp = new DependencyProperty(name, propertyType, ownerType, defaultMetadata, validateValueCallback)
+// Map owner type to this property
+// Build key
+lock (Synchronized)
+{
+    PropertyFromName[key] = dp;
+}
+```
+
+读到这里，我们可以用一句话概括DependencyProperty对象的创建与注册，那就是：
+
+创建一个DependencyProperty 实例并用它的CLR属性名和宿主类型名生成 hashcode，最后把 hash code 和DependencyProperty 实例作为Key-Value 对存入全局的、名为PropertyFromName 的 Hashtable中。这样，WFP属性系统通过CLR属性名和宿主类型名就可以从这个全局的 Hashtable 中检索出对应的DependencyProperty 实例。最后，生成的DependencyProperty实例被当作返回值交还。
+
+有一点需要注意：把 DependencyPropery 实例注册进全局 Hashtable 时使用的 key由 CLR属性名哈希值和宿主类型哈希值经过运算得到，`但这并不是 DependencyPropery 实例的哈希值`，每个 DependencyPropery 实例都具有一个名为 Globalndex 的int 类型属性，Globallndex的值是经过一些算法处理得到的，确保了每个 Dependencypropery实例的 Globallndex 是唯一的。
+
+```C#
+public int GlobalIndex
+{
+    get { return (int) (_packedData & Flags.GlobalIndexMask); }
+}
+```
+
+Dependencypropery的GetHashCode也被重写了，其值就是GlobalIndex，所以通过GlobalIndex这个值就可以直接检索到某个 DependencyProperty 实例。
+
+```C#
+public override int GetHashCode()
+{
+    return GlobalIndex;
+}
+```
+
+#### 2) DependencyObject.GetValue源码分析
+
+至此，一个 DependencyProperty 实例已经被创建并注册进一个全局的Hashtable 中，下面就要使用 DependencyObject的 SetValue和 GetValue借助这个DependencyProperty 实例保存和读取值了。
+
+DependencyObject源码地址：https://referencesource.microsoft.com/#WindowsBase/Base/System/Windows/DependencyObject.cs,3ce192f6633decc8
+
+
+
+```C#
+/// <summary>
+///     Retrieve the value of a property
+/// </summary>
+/// <param name="dp">Dependency property</param>
+/// <returns>The computed value</returns>
+public object GetValue(DependencyProperty dp)
+{
+    // Do not allow foreign threads access.
+    // (This is a noop if this object is not assigned to a Dispatcher.)
+    //
+    this.VerifyAccess(); //验证参数的有效性
+
+    if (dp == null)
+    {
+        throw new ArgumentNullException("dp");
+    }
+
+    // Call Forwarded
+    return GetValueEntry( //这里才是核心代码
+        LookupEntry(dp.GlobalIndex), //验证Globallndex的唯一性
+        dp,
+        null,
+        RequestFlags.FullyResolved).Value;
+}
+```
+
+核心代码的意思：GetValueEntry的第1个参数为 `LookupEntry(dp.GlobalIndex)`，第2个参数为`dp`，第3个参数为`null`，第4个参数为`RequestFlags.FullyResolved`，最后返回`GetValueEntry`方法返回值（EffectiveValueEntry  entry）的Value属性值
+
+WPF 的依赖属性系统在存放值的时候会把每个有效值存放在一个“小房间”里，每个“小房间”都有自己的入口——检索算法只要找到这个入口、走进入口就能拿到依赖属性的值。这里说的“小房间”实际上就是EffectiveValueEntry类的实例。EfectiveValueEntry的所有构造器都包含一个DependencyProperty 类型的参数，换句话说，`每个EiectiveValueEntry都关联着一个DependencyProperty`。`EfectiveValueEntry类具有一个名为PropertyIndex的属性，这个属性的值实际上就是与之关联的DependencyProperty的Globallndex属性值`(这个值的由来我们在前面已经详细讨论过)。
+
+在DependencyObiect类的源码中可以找到这样一个成员变量：
+
+```C#
+// The cache of effective values for this DependencyObject
+// This is an array sorted by DP.GlobalIndex.  This ordering is
+// maintained via an insertion sort algorithm.
+private EffectiveValueEntry[] _effectiveValues;
+```
+
+这个数组依每个成员的 PropertyIndex属性值进行排序，对这个数组的操作（如插入、删除和排序等）由专门的算法来完成。正是这个数组向我们提示了依赖属性存储值的秘密——每个DependencyObject实例都自带一个 EfectiveValueEntry类型数组（你可以把它理解为一排可以随时扩建的“小房间”），当某个依赖属性的值要被读取时，算法就会从这个数组中去检索值，如果数组中没有包含这个值，算法会返回依赖属性的默认值（这个值由依赖属性的 DefaultMetadata 来提供）。
+
+至此，我们明白了一件事情，那就是被 static 关键字所修饰的依赖属性对象其作用是用来检索真正的属性值而不是存储值（我理解的是，传入的是生成key的参数，用key在EfectiveValueEntry数组中查Value）；被用做检索键值的实际上是依赖属性的GlobalIndex属性（本质是其 hashcode，而 hash code 又由其 CLR包装器名和宿主类型名共同决定)，为了保证 GlobalIindex 属性值的稳定性，我们声明的时候又使用了readonly 关键字进行修饰。
+
+实际工作中，依赖属性的值除了可能存储在 EfectiveValueEntry数组或由默认值提供外，还有很多途径可以获得，可能来自于元素的 Style 或 Theme，也可能由上层元素继承而来，还可能是在某个动画过程的控制下不断变化而来。我们怎么知道获取的值来自于哪里呢？原来，WPF 对依赖属性值的读取是有优先级控制的，由先到后依次是：
+
+1. WPF属性系统强制值。
+2. 由动画过程控制的值。
+3. 本地变量值(存储在EectiveValueEntry数组中)。
+4. 由上级元素的 Template 设置的值。
+5. 由隐式样式(Implicit Style)设置的值。
+6. 由样式之触发器(StyleTrigger)设置的值。
+7. 由模板之触发器(Template Trigger)设置的值。
+8. 由样式之设置器(StyleSetter)设置的值。
+9. 由默认样式(Default Style)设置的值，默认模式其实就是由主题(Theme)指定的模式。
+10. 由上级元素继承而来的值。
+11. 默认值，来源于依赖属性的元数据(metadata)。
+
+理解了 GetValue 方法，SetValue 方法也不再神秘。
+
+#### 3) DependencyObject.SetValue源码分析
+
+```C#
+/// <summary>
+///     Sets the local value of a property
+/// </summary>
+/// <param name="dp">Dependency property</param>
+/// <param name="value">New local value</param>
+public void SetValue(DependencyProperty dp, object value)
+{
+    // Do not allow foreign threads access.
+    // (This is a noop if this object is not assigned to a Dispatcher.)
+    //
+    this.VerifyAccess();
+
+    // Cache the metadata object this method needed to get anyway.
+    PropertyMetadata metadata = SetupPropertyChange(dp);
+
+    // Do standard property set
+    SetValueCommon(dp, value, metadata, false /* coerceWithDeferredReference */, false /* coerceWithCurrentValue */, OperationType.Unknown, false /* isInternal */);
+}
+```
+
+进入这个方法后，首先验证依赖属性的值是否可以被改变，如果不能则抛出异常，如果可以就进入后面的赋值流程。赋值流程也很简单，SetValueCommon内部主要有这样几个操作:
+
+- 检查值是不是 DependencyProperty.UnsetValue，如果是，说明调用者的意图是清空现有的值。此时程序会调用ClearValueCommon方法来清空现有的值。
+- 检查 EfectiveValueEntry 数组中是否已经存在相应依赖属性的位置,如果有则把旧值改写为新值，如果没有则新建 EfectiveValueEntry对象并存储新值。这样，只有被用到的值才会被放进这个列表，借此，WPF系统用算法(时间)换取了对内存(空间)的节省。
+- 调用 UpdateEfectiveValue 对新值做一些相应处理。
+
+DependencyObject和DependencyProperty两个类是 WPF属性系统的核心，本小节的设立是为了帮助大家理解它们之间的关系以及依赖属性值设置、读取的简要流程。通过这一小节的描述，希望大家能理解 WPF 系统的设计理念,即以public static 类型的变量作为标记并以这个标记为索引进行对象的存储、访问、修改、删除等操作。这样的理念在传统的.NET开发体系中(如 Windows Forms、ASPNET等)是不曾出现的，它是WPF体系的创新并且广泛应用(后面的路由事件、命令系统等都会用到这样的理念)。同时，我们也可以理解为什么WPF 在性能上还不尽如人意，微软也在不停地完善这个机制，使它的效率进一步提升。
 
 ## 1.3、附加属性
 

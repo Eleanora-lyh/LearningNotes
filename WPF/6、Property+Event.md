@@ -871,19 +871,141 @@ namespace PropertyLearning
 
 # 2、事件
 
+就像属性系统在WPF中得到升级、进化为依赖属性一样，事件系统在WPF中也被升级进化成为路由事件(RoutedEvent)，并在其基础上衍生出命令传递机制。这些机制在很大程度上减少了对程序员的束缚，让程序的设计和实现更加灵活，模块之间的耦合度也进一步降低。本章就让我们一起来领略这些新消息机制的风采。
+
 ## 2.1、WPF的树形结构
 
+WPF中有两种“树”：
 
+1. 一种叫逻辑树（Logical Tree）它完全由布局组件和控件构成(包括列表类控件中的条目元素)，换句话说就是它的每个结点不是布局组件就是控件。
+2. 一种叫可视元素树（VisualTree）每个WPF控件本身也是一棵由更细微级别的组件（它们不是控件，而是一些可视化组件，派生自 Visual类）组成的树。
+
+如果想在 Logical Tree 上导航或查找元素，可以借助LogicalTreeHelper 类的 static 方法来实现:
+
+- BringlntoView：把选定元素带进用户可视区域，经常用于可滚动的视图。
+- FindLogicalNode：按给定名称(Name属性值)查找元素，包括子级树上的元素。
+- GetChildren：获取所有直接子级元素。
+- GetParent：获取直接父级元素。
+
+现在我们已经知道，WPF的UI 可以表示为Logical Tree和 Visual Tree，那么当一个路由事件被激发后是沿着Logical Tree 传递还是沿着 VisualTree 传递呢？答案是 Visual Tree——只有这样，“藏”在 Template 里的控件才能把消息送出来。
 
 ## 2.2、事件的来龙去脉
 
+- 事件的拥有者：即消息的发送者。事件的宿主可以在某些条件下激发它拥有的事件，即事件被触发。事件被触发则消息被发送。
+- 事件的响应者：即消息的接收者、处理者。事件接收者使用其事件处理器(Event Handler)对事件做出响应。
+- 事件的订阅关系：事件的拥有者可以随时激发事件，但事件发生后会不会得到响应要看有没有事件的响应者，或者说要看这个事件是否被关注。如果对象A关注对象B的某个事件是否发生，则称A订阅了B的事件。更进一步讲，事件实际上是一个使用event关键字修饰的委托(Delegate)类型成员变量，事件处理器则是一个函数，说A订阅了B的事件，本质上就是让 B.Event与A.EventHandler 关联起来。所谓事件激发就是 B.Event被调用，这时，与其关联的 A.EventHandler就会被调用。事件模型可以用如图 8-3所示的模型作为简要说明:<img src="../TyporaImgs/image-20240422201606612.png" alt="image-20240422201606612" style="zoom:67%;" />
 
+在这种模型里，事件的响应者通过订阅关系直接关联在事件拥有者的事件上，为了与WPF的路由事件模型区分开，我把这种事件模型称为直接事件模型或者 CLR事件模型。因为CLR事件本质上是一个用 event 关键字修饰的委托实例，我们暂且模仿 CLR 属性的说法，把 CLR 事件定义为一个委托类型实例的包装器或者说有一个委托类型实例在支持(backing)一个CLR事件。
+
+直接事件模型是传统.NET开发中对象间相互协同、沟通信息的主要手段，它在很大程度上简化了程序的开发。然而直接事件模型并不完美，它的不完美之处就在于事件的响应者与事件拥有者之间必须建立时间订阅这个“专线连接”，这样至少有两个弊端：
+
+1. 每对消息是“发送一响应”关系，必须建立显式的点对点订阅关系。
+2. 事件的宿主必须能够直接访问事件的响应者，不然无法建立订阅关系。
+
+直接事件模型的弱点会在下面两种情况中显露出来:
+
+1. 程序运行期在容器中动态生成一组相同控件，每个控件的同一个事件都使用同一个事件处理器来响应。面对这种情况，我们在动态生成控件的同时就需要显式书写事件订阅代码。
+2. 用户控件的内部事件不能被外界所订阅，必须为用户控件定义新的事件用以向外界暴露内部事件。当模块划分很细的时候，U】组件的层级会很多，如果想让很外层的容器订阅深层控件的某个事件就需要为每一层组件定义用于暴露内部事件的事件、形成事件链。
+
+路由事件的出现很好地解决了上述两种情况中出现的问题,下一节我们就来研究路由事件的使用。
 
 ## 2.3、路由事件
 
+路由事件与直接事件的区别在于：
+
+- 直接事件激发时，发送者直接将消息通过`事件订阅`交送给事件响应者，事件响应者使用其事件处理器方法对事件的发生做出响应、驱动程序逻辑按客户需求运行
+- 路由事件的事件拥有者和事件响应者之间则`没有直接显式的订阅关系`，事件的拥有者只负责激发事件，事件将由谁响应它并不知道，`事件的响应者则安装有事件侦听器`，针对某类事件进行侦听，当有此类事件传递至此时，事件响应者就使用事件处理器来响应事件，并决定事件是否可以继续传递。
+
 ### 2.3.1、使用WPF内置路由事件
 
+当点击两边的按钮时，就会沿着右图的路径向上传送事件
+
+![image-20240422205146489](../TyporaImgs/image-20240422205146489.png)
+
+```html
+<Window x:Class="EventHandlerTest.RoutedEventWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:EventHandlerTest"
+        mc:Ignorable="d"
+        Title="RoutedEventWindow" Height="200" Width="200">
+    <Grid x:Name="gridRoot" Background="LightGreen">
+        <Grid x:Name="gridA" Margin="10" Background="LightBlue">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition/>
+                <ColumnDefinition/>
+            </Grid.ColumnDefinitions>
+            <Canvas x:Name="canvasLeft" Grid.Column="0" Background="LightPink" Margin="10">
+                <Button x:Name="buttonLeft" Content="Left" Width="40" Height="100" Margin="10"/>
+            </Canvas>
+            <Canvas x:Name="canvasRight" Grid.Column="1" Background="LightSalmon" Margin="10">
+                <Button x:Name="buttonRight" Content="Right" Width="40" Height="100" Margin="10"/>
+            </Canvas>
+        </Grid>
+    </Grid>
+</Window>
+```
+
+.cs文件：实现功能：当点击按钮时事件向上传递，在gridRoot中进行相应处理
+
+```C#
+namespace EventHandlerTest
+{
+    /// <summary>
+    /// RoutedEventWindow.xaml 的交互逻辑
+    /// </summary>
+    public partial class RoutedEventWindow : Window
+    {
+        public RoutedEventWindow()
+        {
+            InitializeComponent();
+            this.gridRoot.AddHandler(Button.ClickEvent, new RoutedEventHandler(this.ButtonClicked));
+        }
+        //这里的sender实际上是gridRoot而不是Button，使用e.OriginalSource获取发起源(object)
+        //as FrameworkElement可以将object转为FrameworkElement
+        //再.Name就可以取到按钮的Name
+        private void ButtonClicked(object sender,RoutedEventArgs e)
+        {
+            MessageBox.Show((e.OriginalSource as FrameworkElement).Name);
+        }
+    }
+}
+```
+
+AddHandler参数传入路由事件、响应处理器
+
+```C#
+public void AddHandler(RoutedEvent routedEvent, Delegate handler);
+//调用：
+this.gridRoot.AddHandler(Button.ClickEvent, 
+                         new RoutedEventHandler (this.ButtonClicked));
+```
+
+第一个参数不是 `Button.Click` 而是静态变量 `Button.CkickEvent`，这里利用了和CLR依赖属性类似的`静态字段-》包装器`的策略。第二个参数响应处理器使我们自己定义的 `ButtonClicked` 弹出MessageBox中显示按钮的Name。
+
+```C#
+this.gridRoot.AddHandler(Button.ClickEvent, 
+                         new RoutedEventHandler(this.ButtonClicked));
+```
+
+这句C#代码也可以在xmal中实现：
+
+```html
+<Grid x:Name="gridRoot" Background="LightGreen" Button.Click ="ButtonClicked">
+</Grid>  
+```
+
 ### 2.3.1、自定义路由事件
+
+创建自定义路由事件大体可以分为三个步骤：
+
+1. 声明并注册路由事件。
+2. 为路由事件添加CLR事件包装。
+3. 创建可以激发路由事件的方法。
+
+
 
 ### 2.3.1、RoutedEventArgs的Source与OriginalSource
 

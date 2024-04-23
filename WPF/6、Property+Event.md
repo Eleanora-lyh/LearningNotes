@@ -878,7 +878,7 @@ namespace PropertyLearning
 WPF中有两种“树”：
 
 1. 一种叫逻辑树（Logical Tree）它完全由布局组件和控件构成(包括列表类控件中的条目元素)，换句话说就是它的每个结点不是布局组件就是控件。
-2. 一种叫可视元素树（VisualTree）每个WPF控件本身也是一棵由更细微级别的组件（它们不是控件，而是一些可视化组件，派生自 Visual类）组成的树。
+2. 一种叫可视元素树（VisualTree）每个WPF控件本身也是一棵由更细微级别的组件（它们不是控件，而是一些可视化组件，派生自 Visual类）组成的树。反应了控件在逻辑上的嵌套关系，不考虑控件的外观和渲染。
 
 如果想在 Logical Tree 上导航或查找元素，可以借助LogicalTreeHelper 类的 static 方法来实现:
 
@@ -1005,10 +1005,371 @@ this.gridRoot.AddHandler(Button.ClickEvent,
 2. 为路由事件添加CLR事件包装。
 3. 创建可以激发路由事件的方法。
 
+主要步骤如下：
 
+写一个样例实现多层控件嵌套，每层空间都绑定相同的路由事件处理器，在最内层触发事件，通过路由事件层层将事件向上传递并执行相同的事件操作。
+
+```C#
+namespace EventHandlerTest
+{
+    /// <summary>
+    /// SelfDesignRoutedEvent.xaml 的交互逻辑
+    /// </summary>
+    public partial class SelfDesignRoutedEvent : Window
+    {
+        public SelfDesignRoutedEvent()
+        {
+            InitializeComponent();
+        }
+        //4、ReportTime 路由事件处理器
+        private void ReportTimeHandler(object sender, ReportTimeEventArgs e)
+        {
+            FrameworkElement element = sender as FrameworkElement;
+            //string timeStr = e.ClickTime.ToLongTimeString();
+            string timeStr = e.ClickTime.ToString("yyyy-MM-dd HH:mm:ss");
+            string content = string.Format($"{timeStr} 到达 {element.Name}");
+            this.listbox.Items.Add(content);
+
+            //if(element == this.grid2) //到达grid2，标记为已处理不再传递
+            //{
+            //    e.Handled = true;
+            //}
+        }
+    }
+    /// <summary>
+    /// 0、RoutedEventArgs的派生类，记录事件发生的时间
+    /// </summary>
+    class ReportTimeEventArgs : RoutedEventArgs
+    {
+        public ReportTimeEventArgs(RoutedEvent routedEvent, object source) : base(routedEvent, source) { }
+        //记录点击的时间
+        public DateTime ClickTime { get; set; }
+    }
+    //自定义TimeButton的路由事件
+    class TimeButton : Button
+    {
+        //1、声明注册路由事件
+        public static readonly RoutedEvent ReportTimeEvent = EventManager.RegisterRoutedEvent(
+        "ReportTime", //路由事件的名称（ReportTimeEvent的前缀）
+        RoutingStrategy.Direct, //路由事件的策略：Bubble Tunnel Direct
+        typeof(EventHandler<ReportTimeEventArgs>), //事件处理器的类型
+            typeof(TimeButton)); //路由事件的宿主类型
+
+        //2、为路由事件添加CLR事件包装器
+        public event RoutedEventHandler ReportTime
+        {
+            //add { ReportTimeEvent += value; }
+            //remove { ReportTimeEvent -= value; }
+            add { this.AddHandler(ReportTimeEvent, value); }
+            remove { this.RemoveHandler(ReportTimeEvent, value); }
+        }
+        //3、创建可以激发路由事件的方法
+        protected override void OnClick()
+        {
+            base.OnClick(); //保证Button原有的Click功能正常使用
+
+            ReportTimeEventArgs args = new ReportTimeEventArgs(ReportTimeEvent, this);
+            args.ClickTime = DateTime.Now;
+            this.RaiseEvent(args);
+        }
+    }
+}
+
+```
+
+声明一个路由事件的过程与声明依赖属性很类似
+
+```C#
+namespace PropertyLearning.Entity
+{
+    public class Student : DependencyObject
+    {
+        /// <summary>
+        /// CLR依赖属性包装器，融合DependencyObject的GetValue、SetValue方法
+        /// </summary>
+        public string StudentName
+        {
+            get
+            {
+                return (string)GetValue(StudentNameProperty);
+            }
+            set 
+            { 
+                SetValue(StudentNameProperty, value);
+            }
+        }
+        /// <summary>
+        /// 声明一个依赖属性StudentNameProperty
+        /// </summary>
+        public static readonly DependencyProperty StudentNameProperty =
+            DependencyProperty.Register("StudentName", typeof(string), typeof(Student));
+        /// <summary>
+        /// 抄一下FameworkElement类的SetBinding方法构造，用BindingOperations.SetBinding实现
+        /// </summary>
+        /// <param name="dp"></param>
+        /// <param name="binding"></param>
+        /// <returns></returns>
+        public BindingExpressionBase SetBinding(DependencyProperty dp, BindingBase binding)
+        {
+            return BindingOperations.SetBinding(this, dp, binding);
+        }
+
+    }
+}
+```
+
+xmal代码：
+
+```html
+<Window x:Class="EventHandlerTest.SelfDesignRoutedEvent"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:EventHandlerTest"
+        mc:Ignorable="d"
+        Title="SelfDesignRoutedEvent" Height="300" Width="300"
+        x:Name="window1" local:TimeButton.ReportTime="ReportTimeHandler">
+    <Grid x:Name="grid1" local:TimeButton.ReportTime="ReportTimeHandler">
+        <Grid x:Name="grid2" local:TimeButton.ReportTime="ReportTimeHandler">
+            <Grid x:Name="grid3" local:TimeButton.ReportTime="ReportTimeHandler">
+                <StackPanel x:Name="stackPanel1" local:TimeButton.ReportTime="ReportTimeHandler">
+                    <ListBox x:Name="listbox"  Margin="5"/>
+                    <local:TimeButton x:Name="timeButton" Width="80" Height="80" Content="报时"
+                                      local:TimeButton.ReportTime="ReportTimeHandler"/>
+                </StackPanel>
+            </Grid>
+        </Grid>
+    </Grid>
+</Window>
+
+```
+
+效果：
+
+<img src="../TyporaImgs/image-20240423205730565.png" alt="image-20240423205730565" />
+
+很多类的事件都是路由事件，如TextBox类的TextChanged 事件、Binding类的 SourceUpdated 事件等，所以在用到这些类型的时候不要墨守传统.NET编程带来的习惯，要发挥自己的想象力，让程序结构更加合理、代码更加简洁。
+
+路由事件虽好，但也不要滥用，举个例子，如果让所有Button(包括组件里的 Button)的 Cick 事件都传递到最外层窗体，让窗体捕捉并处理它，那么程序架构就变得毫无意义了。正确的办法是，事件该由谁来捕捉处理，传到这个地方时就应该处理掉。
 
 ### 2.3.1、RoutedEventArgs的Source与OriginalSource
 
+前面已经提到，路由事件是沿着VisualTree传递的。VisualTree与LogicalTree 的区别就于:LogicalTree 的叶子结点是构成用户界面的控件，而VisualTree 要连控件中的细微结构也算上。我们说“路由事件在 VisualTree 上传递”，本意上是说“路由事件的消息在 VisualTree 上传递”，而`路由事件的消息则包含在RoutedEventArgs实例中`。RoutedEventArgs有两个属性Source 和OriginalSource，这两个属性都表示路由事件传递的起点（即事件消息的源头）
+
+只不过 Source 表示的是LogicalTree 上的消息源头，
+
+而 OriginalSource 则表示 VisualTree 上的源头。
+
+请看下面的例子，设计一个UserControl包含一个按钮，应用到Mainwindow后点击按钮触发MainWindow的事件监听，路由事件处理器中弹窗显示的当前消息发起方的LogicalTree、VisualTree 
+
+UserControl：
+
+```html
+<UserControl x:Class="EventHandlerTest.RoutedEventArgsCon"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:local="clr-namespace:EventHandlerTest"
+             mc:Ignorable="d"
+             d:DesignHeight="200" d:DesignWidth="200">
+    <Border BorderBrush="Orange" BorderThickness="3" CornerRadius="5">
+        <Button x:Name="innerButton" Width="80" Height="80" Content="OK"/>
+    </Border>
+</UserControl>
+```
+
+MainWindow：
+
+```html
+<Window x:Class="EventHandlerTest.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:EventHandlerTest"
+        mc:Ignorable="d"
+        Title="MainWindow" Height="450" Width="800">
+    <Grid>
+        <local:RoutedEventArgsCon x:Name="myControl" Margin="10"/>
+    </Grid>
+</Window>
+
+```
+
+```C#
+namespace EventHandlerTest
+{
+    /// <summary>
+    /// Interaction logic for MainWindow.xaml
+    /// </summary>
+    public partial class MainWindow : Window
+    {
+        public MainWindow()
+        {
+            InitializeComponent();
+            //主窗体添加对Button.Click的事件监听
+            this.AddHandler(Button.ClickEvent, new RoutedEventHandler(this.Button_Click));
+        }
+        //路由事件处理器
+        private void Button_Click(object sender,RoutedEventArgs e)
+        {
+            string strOriginalSource = $@"VisualTree start point:{(e.OriginalSource as FrameworkElement).Name}, type is {e.OriginalSource.GetType().Name}";
+
+            string strSource = $@"LogicalTree start point:{(e.Source as FrameworkElement).Name}, type is {e.Source.GetType().Name}";
+
+            MessageBox.Show($"{strOriginalSource}\r\n{strSource}");
+        }
+    }
+}
+```
+
+效果：
+
+![image-20240423213118720](../TyporaImgs/image-20240423213118720.png)
+
+Button.Click路由事件是从 RoutedEventArgsCon 的 innerButton发出来的，在主窗体中RoutedEventArgsCon 是LogicalTree的末端结点，所以e.Source就是myUserControl；而窗体的 VisualTree 则包含了 RoutedEventArgsCon 的内部结构，可以“看见”路由事件究竟是从哪个控件发出来的，所以使用e.OriginalSource 可以获得 innerButton。
+
 ### 2.3.1、附加事件
 
-NuGet\Install-Package Prism.Wpf -Version 8.1.97
+在WPF事件系统中还有一种事件被称为附加事件（AttachedEvent）我们看看都有哪些类拥有附加事件：
+
+1. Binding 类：SourceUpdated 事件、TargetUpdated 事件。
+2. Mouse类：MouseEnter事件、MouseLeave事件、MouseDown事件、MouseUp事件等。
+3. Keyboard 类：KeyDown事件、KeyUp 事件等。
+
+再对比一下那些拥有路由事件的类，如Button、Slider、TextBox………发现什么问题了吗？`路由事件的宿主都是些拥有可视化实体的界面元素，而附加事件则不具备显示在用户界面上的能力`。也就是说，附加事件的宿主没有界面渲染功能，但一样可以使用附加事件与其他对象进行沟通。
+
+理解了附加事件的原理，让我们动手写一个例子。
+
+我想实现的逻辑是这样的：设计一个名为Student 的类，如果 Student 实例的 Name 属性值发生了变化就激发一个路由事件，使用界面元素来捕捉这个事件。
+
+先模拟Name属性变化：点击按钮后代码中直接修改Name属性
+
+```html
+<Window x:Class="EventHandlerTest.AttachEventWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:EventHandlerTest"
+        mc:Ignorable="d"
+        Title="AttachEventWindow" Height="200" Width="200">
+    <Grid x:Name="gridMain">
+        <Button x:Name="button1" Width="80" Height="80" Content="OK" Click="Button1_Click"/>
+    </Grid>
+</Window>
+```
+
+
+
+```C#
+namespace EventHandlerTest
+{
+    /// <summary>
+    /// AttachEventWindow.xaml 的交互逻辑
+    /// </summary>
+    public partial class AttachEventWindow : Window
+    {
+        public AttachEventWindow()
+        {
+            InitializeComponent();
+            //2、为外层grid添加路由事件侦听器
+            this.gridMain.AddHandler(Student.NameChangedEvent, 
+                new RoutedEventHandler(this.StudentNameChangedHandler));
+        }
+        //3、路由事件处理器
+        private void StudentNameChangedHandler(object sender, RoutedEventArgs e)
+        {
+            MessageBox.Show((e.OriginalSource as Student).Id.ToString());
+        }
+
+        private void Button1_Click(object sender, RoutedEventArgs e)
+        {
+            Student stu = new Student() { Id = 101,Name = "Tim" };
+            stu.Name = "Tom";
+            //准备事件消息，并发送路由事件 （创建可以激发路由事件的方法）
+            RoutedEventArgs args = new RoutedEventArgs(Student.NameChangedEvent,stu);
+            this.button1.RaiseEvent(args);
+        }
+    }
+
+    public class Student
+    {
+        //1、声明路由事件
+        public static readonly RoutedEvent NameChangedEvent = EventManager.RegisterRoutedEvent(
+            "NameChanged", 
+            RoutingStrategy.Bubble, 
+            typeof(RoutedEventHandler),
+            typeof(Student));
+
+        public int Id { get; set; }
+        public string Name { get; set; }    
+    }
+}
+```
+
+效果：
+
+<img src="../TyporaImgs/image-20240423220549923.png" alt="image-20240423220549923" style="zoom:67%;" />
+
+在窗体的构造器中为 Grid 元素添加了对 Student.NameChangedEvent 的侦听，这与添加对路由事件的侦听没有任何区别。Grid 在捕捉到路由事件后会显示事件消息源(一个Student实例)的Id。
+
+理论上现在的 Student 类已经算是具有一个附加事件了，但微软的官方文档约定要为这个附加事件添加一个 CLR 包装以便 XAML,编辑器识别并进行智能提示。可惜的是，Student 类并非派生自 UIElement，因此亦不具备 AddHandler 和 RemoveHandler 这两个方法，所以不能使用 CLR 属性作为包装器(因为CLR属性包装器的add和remove分支分别调用当前对象的AddHandler 和RemoveHandler)。微软规定：
+
+- 为目标 UI 元素添加附加事件侦听器的包装器是一个名为`Add*Handler`的 public static 方法，星号代表事件名称（与注册事件时的名称一致）。此方法接收两个参数，第一个参数是事件的侦听者（类型为DependencyObiject），第二个参数为事件的处理器（RoutedEventHandler 委托类型）。
+- 解除 UI 元素对附加事件侦听的包装器是名为`Remove*Handler`的 publicstatic 方法，星号亦为事件名称，参数与Add*Handler 一致。
+
+```C#
+public class Student
+{
+    //1、声明路由事件
+    public static readonly RoutedEvent NameChangedEvent = EventManager.RegisterRoutedEvent(
+        "NameChanged", 
+        RoutingStrategy.Bubble, 
+        typeof(RoutedEventHandler),
+        typeof(Student));
+    // 路由事件添加CLR事件包装器 (增加)
+    //添加路由事件侦听
+    public static void AddNameChangedHandler(DependencyObject d,RoutedEventHandler h)
+    {
+        UIElement e = d  as UIElement;
+        if(e != null) 
+        { 
+            e.AddHandler(NameChangedEvent,h);
+        }
+    }
+    //移除侦听
+    public static void RemoveNameChangedHandler(DependencyObject d, RoutedEventHandler h)
+    {
+        UIElement e = d as UIElement;
+        if (e != null)
+        {
+            e.RemoveHandler(NameChangedEvent, h);
+        }
+    }
+    public int Id { get; set; }
+    public string Name { get; set; }    
+}
+```
+
+```C#
+public AttachEventWindow()
+{
+    InitializeComponent();
+    //为外层grid添加路由事件侦听器
+    Student.AddNameChangedHandler(this.gridMain, 
+                       new RoutedEventHandler(this.StudentNameChangedHandler));
+    //原来的写法：
+    //this.gridMain.AddHandler(Student.NameChangedEvent, new RoutedEventHandler(this.StudentNameChangedHandler));
+}
+```
+
+现在让我们仔细理解一下附加事件的“附加”。确切地说，UIElement 类是路由事件宿主与附加事件宿主的分水岭，不单是因为从UIElement 类开始才具备了在界面上显示的能力，还因为RaiseEvent、AddHandler 和 RemoveHandler 这些方法也定义在 UIElement 类中。因此，如果在一个非 UElement 派生类中注册了路由事件，则这个类的实例既不能自己激发(Raise)此路由事件也无法自己侦听此路由事件，只能把这个事件的激发“附着”在某个具有RaiseEvent方法的对象上，借助这个对象的 RaiseEvent 方法把事件发送出去;事件的侦听任务也只能交给别的对象去做。总之，附加事件只能算是路由事件的一种用法而非一个新概念,说不定哪天微软就把附加事件这个概念撤消了。
+
+最后分享些实际工作中的经验：
+
+- 第一，像 Buton.Click 这些路由事件，因为事件的宿主是界面元素、本身就是UI 树上是一个结点，所以路由事件路由时的第一站就是事件的激发者。附加事件宿主不是 UIElement 的派生类，所以不能出现在UI树上的结点，而且附加事件的激发是借助 UI元素实现的，因此，`附加事件路由的第一站是激发它的元素`。
+- 第二，实际上很少会把附加事件定义在 Student 这种与业务逻辑相关的类中，一般都是定义在像 Binding、Mouse、Keyboard 这种全局的 Helper 类中。如果需要业务逻辑类的对象能发送出路由事件来怎么办？我们不是有 Binding吗!如果程序架构设计的好(使用数据驱动 UI)，那么业务逻辑一定会使用 Binding 对象与 UI元素关联，一旦与业务逻辑相关的对象实现了 INotifyPropertyChanged 接口并且 Binding 对象的 NotifyOnSourceUpdated属性设为 true，则 Binding 就会激发其SourceUpdated附加事件，此事件会在UI元素树上路由并被侦听者捕获。
+

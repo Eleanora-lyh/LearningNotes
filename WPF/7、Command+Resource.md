@@ -493,6 +493,225 @@ internal static void CriticalExecuteCommandSource(ICommandSource commandSource, 
 
 ### 1.2.2 自定义Command
 
+自定义命令有两个层次：
+
+1、自定义RoutedCommand实例，这只是对RoutedCommand的使用
+
+2、实现IConmmand接口，同时将业务逻辑包含在命令中。但是棘手的是WPF命令系统中 命令源、RoutedCommand、CommandBinding三者依赖的相当紧密。切命令相关的方法没有声明为Virtual 以供重写。
+
+换句话说，WPF自带的命令源和CommandBinding就是专门为RoutedCommand 而编写的，如果我们想使用自己的ICommand 派生类就必须连命令源一起实现(即实现ICommandSource接口)。因此，为了简便地使用WPF这套成熟的体系，为了更高效率地“从零开始”打造自己的命令系统，需要我们根据项目的实际情况进行权衡。
+
+前面已经多次提到，RoutedCommand与业务逻辑无关，业务逻辑要依靠外围的CommandBinding来实现。这样一来，如果对 CommandBinding 管理不善就有可能造成代码杂乱无章，毕竟一个CommandBinding要牵扯到谁是它的宿主以及它的两个事件处理器。
+
+为了简化使用 CommandBinding来处理业务逻辑的程序结构,我们可能会希望把业务逻辑移入命令的 Execute 方法内。比如，我们可以自定义一个名为Save 的命令，当命令到达命令目标的时候先通过命令目标的IsChanged 属性判断命令目标的内容是否已经被改变，如果已经改变则命令可以执行，命令的执行会直接调用命令目标的 Save 方法、驱动命令目标以自己的方式保存数据。很显然，这回是命令直接在命令目标上起作用了，而不像RoutedCommand 那样先在命令目标上激发出路由事件等外围控件捕捉到事件后再“翻过头来”对命令目标加以处理。你可能会问：“如果命令目标不包含IsChanged和Save方法怎么办?”这就要靠接口来约束了，如果我在程序中定义这样一个接口：
+
+```C#
+public interface IView{
+    //属性
+	bool lsChanged { get, set;}
+	//方法
+	void SetBinding(),
+	void Refresh();
+	void Clear();
+	void Save();
+}
+```
+
+并且要求每个需要接受命令的组件都必须实现这个接口,这样就确保了命令可以成功地对它们执行作。接下来，我们实现ICommand 接口，创建一个专门作用于IView 派生类的命令。
+
+新建一个userControl（名为selfCommandTestView），设计一个页面 其中包含四个textBox
+
+```html
+<UserControl x:Class="CommandTest.selfCommandTestView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:local="clr-namespace:CommandTest"
+             mc:Ignorable="d"
+             Height="114" Width="200">
+    <StackPanel>
+        <TextBox x:Name="textBox1" Margin="5"/>
+        <TextBox x:Name="textBox2" Margin="5,0"/>
+        <TextBox x:Name="textBox3" Margin="5"/>
+        <TextBox x:Name="textBox4" Margin="5,0"/>
+    </StackPanel>
+</UserControl>
+```
+
+在其cs文件中设计：
+
+- 一个IMyView接口规范新建的selfCommandTestView组件必须实现接口的方法
+- 自定义命令（继承自ICommand），专门用于IMyView接口，如果命令的目标为IMyView的实现则调用其Clear方法
+- 自定义命令源（继承自 UserControl, 实现 ICommandSource）， 专门用于设置命令的命令源，继承UserControl的原因：组件被单击时执行操作 OnMouseLeftButtonDown(重写UserControl的)；实现ICommandSource的原因：继承其属性 Command、CommandParameter、CommandTarget 当命令目标不为空时，将命令作用于命令目标
+
+```C#
+namespace CommandTest
+{
+    /// <summary>
+    /// 4、selfCommandTestView作为接受命令的组件必须继承自IMyView
+    /// </summary>
+    public partial class selfCommandTestView : UserControl,IMyView
+    {
+        public selfCommandTestView()
+        {
+            InitializeComponent();
+        }
+        //用于清除内容的业务逻辑
+        public void Clear()
+        {
+            this.textBox1.Clear(); //this.textBox1.Text=""多了处理文本框的样式、光标位置
+            this.textBox2.Clear();
+            this.textBox3.Clear();
+            this.textBox4.Clear();
+        }
+        //继承自IMyView的成员
+        public bool IsChanged { get => throw new NotImplementedException(); set => throw new NotImplementedException(); }
+
+        public void Refresh()
+        {
+            throw new NotImplementedException();
+        }
+
+        public void Save()
+        {
+            throw new NotImplementedException();
+        }
+
+        public void SetBinding()
+        {
+            throw new NotImplementedException();
+        }
+    }
+    //1、靠接口来约束命令目标：一定包含IsChanged和Save方法（要求每个需要接受命令的组件都必须实现这个接口）
+    public interface IMyView
+    {
+        //属性
+        bool IsChanged { set; get; }
+        //方法
+        void SetBinding();
+        void Refresh();
+        void Clear();
+        void Save();
+    }
+    //2、自定义命令,专门用于IMyView接口
+    public class ClearCommand : ICommand
+    {
+        //当命令可执行状态发生改变时，被激发
+        public event EventHandler? CanExecuteChanged;
+
+        //用于判断命令是否可执行（暂不实现）
+        public bool CanExecute(object? parameter)
+        {
+            throw new NotImplementedException();
+        }
+        //只用到了命令行执行，带有业务逻辑的Clear
+        public void Execute(object? parameter)
+        {
+            //parameter参数为命令目标，如果目标能够转为IMyView则调用其Clear方法
+            IMyView view = parameter as IMyView;
+            if (view != null)
+            {
+                view.Clear();
+            }
+            //throw new NotImplementedException();
+        }
+    }
+    //3、自定义命令源
+    public class MyCommandSource : UserControl, ICommandSource
+    {
+        //继承自ICommandSource的三个属性
+        // Gets the command that will be executed when the command source is invoked
+        public ICommand Command { set; get; }
+        //Represents a user defined data value that can be passed to the command when it
+        //     is executed.
+        public object CommandParameter { set; get; }
+        //The object that the command is being executed on.
+        public IInputElement CommandTarget { set; get; }
+
+        //组件被单击时执行命令
+        protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)
+        {
+            base.OnMouseLeftButtonDown(e);
+
+            //当命令目标不为空时，将命令作用于命令目标
+            if (this.CommandTarget != null)
+            {
+                this.Command.Execute(this.CommandTarget);
+            }
+        }
+    }
+}
+```
+
+`OnMouseLeftButtonDown`方法实际上不是`UserControl`类的方法，要追溯到其祖祖祖父`UIElement`类，类之间的继承关系如下：
+
+```text
+MyCommandSource —》UserControl —》ContentControl —》Control —》FrameworkElement —》UIElement（OnMouseLeftButtonDown）
+```
+
+目前准备就绪的有：
+
+1. 接收命令的组件 `selfCommandTestView`
+2. 自定义的命令 `ClearCommand`
+3. 自定义的命令源 `MyCommandSource`
+
+还缺少发起命令的触发事件，所以新建一个window（名为`SelfDesignCommandWindow`），内部放置一个按钮，套在自定义命令源 `MyCommandSource` 里面就可以作为发起（触发）命令的组件。引入上面继承自`IMyView`接口的自定义的用于接受命令组件 `selfCommandTestView`
+
+```html
+<Window x:Class="CommandTest.SelfDesignCommandWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:CommandTest"
+        mc:Ignorable="d"
+        Title="SelfDesignCommandWindow" Height="205" Width="250">
+    <StackPanel>
+        <local:MyCommandSource x:Name="myCommandSource" Margin="10">
+            <TextBlock Text="清除" FontSize="16" TextAlignment="Center"
+                       Background="LightBlue" Width="80"/>
+        </local:MyCommandSource>
+        <local:selfCommandTestView x:Name="miniView"/>
+    </StackPanel>
+</Window>
+```
+
+在`SelfDesignCommandWindow`的cs文件初始化时：将自定义命令`ClearCommand`绑定到自定义命令源`myCommandSource`上，设置命令接受者为自定义的接受命令组件 `selfCommandTestView`的实例。
+
+```C#
+namespace CommandTest
+{
+    /// <summary>
+    /// SelfDesignCommandWindow.xaml 的交互逻辑
+    /// </summary>
+    public partial class SelfDesignCommandWindow : Window
+    {
+        public SelfDesignCommandWindow()
+        {
+            InitializeComponent();
+
+            //声明命令并使命令源和目标关联
+            this.myCommandSource.Command = new ClearCommand();
+            this.myCommandSource.CommandTarget = this.miniView;
+        }
+    }
+}
+```
+
+效果：
+
+<img src="../TyporaImgs/image-20240427121703259.png" alt="image-20240427121703259" style="zoom:80%;" />
+
+效果实现过程：
+
+- 当鼠标点击清除时，就会触发外层的`MyCommandSource`中的`OnMouseLeftButtonDown方法`
+- 此时由于`myCommandSource命令源实例`已经在初始化时绑定了`命令ClearCommand()+命令目标this.miniView`，`OnMouseLeftButtonDown方法`中判断到命令目标不为空，则执行将命令作用于命令目标的操作（命令为ClearCommand()，命令目标为this.miniView）
+- `ClearCommand()方法`中判断`miniView`属于我们自定义的`selfCommandTestView类`，即触发`selfCommandTestView类`的`Clear()方法`
+- `selfCommandTestView类`的`Clear()方法`中清空了我们自定义的userControl中所有的textbox
+
+至此，一个简单的自定义命令就完成了。若想通过Command的 CanExecute 方法返回值来影响命令源的状态，还需要使用ICommand和ICommandSource 接口的成员组成更复杂的逻辑，介于篇幅原因不再赘述。（挖坑待填）
+
 # 2、Resource
 
 ## 2.1、WPF对象级自愿的定义于查找

@@ -710,18 +710,293 @@ namespace CommandTest
 - `ClearCommand()方法`中判断`miniView`属于我们自定义的`selfCommandTestView类`，即触发`selfCommandTestView类`的`Clear()方法`
 - `selfCommandTestView类`的`Clear()方法`中清空了我们自定义的userControl中所有的textbox
 
-至此，一个简单的自定义命令就完成了。若想通过Command的 CanExecute 方法返回值来影响命令源的状态，还需要使用ICommand和ICommandSource 接口的成员组成更复杂的逻辑，介于篇幅原因不再赘述。（挖坑待填）
+至此，一个简单的自定义命令就完成 了。若想通过Command的 CanExecute 方法返回值来影响命令源的状态，还需要使用ICommand和ICommandSource 接口的成员组成更复杂的逻辑，介于篇幅原因不再赘述。（挖坑待填）
 
 # 2、Resource
 
+我们把有用的东西称为资源。“兵马未动，粮草先行”——程序中的各种数据就是算法的原料和粮草。程序中可以存放数据的地方有很多，可以放在数据库里、可以存储在变量里。
+
+界于数据库存储和变量存储之间，我们还可以把数据存储在程序主体之外的文件里。外部文件与程序主体分离，这就有可能丢失或损坏，为了避免丢失或损坏，编译器允许我们把外部文件编译进程序主体，成为程序主体不可分割的一部分，这就是传统意义上的程序资源(也称为二进制资源)。
+
+WPF不但支持程序级的传统资源，同时还推出了独具特色的对象级资源，每个界面元素都可以携带自己的资源并可被自己的子级元素共享。比如后面章节要讲到的各种模板、程序样式和主题就经常放在对象级资源里。这样一来，在WPF程序中数据就分为四个等级存储了：
+
+1. 数据库里的数据相当于存放在仓库里
+2. 资源文件里的数据相当于放在旅行箱里
+3. WPF对象资源里的数据相当于放在随身携带的背包里
+4. 变量中的数据相当于拿在手里。
+
+本章先来学习WPF对象级资源，然后回顾传统资源在WPF中的使用
+
 ## 2.1、WPF对象级自愿的定义于查找
+
+每个 WPF的界面元素都具有一个名为`Resources`的属性，这个属性继承自`FrameworkElement类`，其类型为 `ResourceDictionary`。ResourceDictionary 能够以“键一值”对的形式存储资源，当需要使用某个资源时，使用“键一值”对可以索引到资源对象。
+
+在保存资源时，ResourceDictionary视资源对象为obiect 类型，所以在使用资源时先要对资源对象进行类型转换，XAML 编译器能够根据标签的 Attribute自动识别资源类型，如果类型不对就会抛出异常，但在C#代码里检索到资源对象后，类型转换的事情就只能由我们自己来做了。ResourceDictionary可以存储任意类型的对象。
+
+在XAML代码中向 Resources 添加资源时需要把正确的名称空间引入到XAML代码中。让我们看一个例子：
+
+```html
+<Window x:Class="ResourceTest._01HelloResource"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:ResourceTest"
+        xmlns:sys="clr-namespace:System;assembly=mscorlib"
+        mc:Ignorable="d"
+        Title="_01HelloResource" FontSize="14" Width="320" Height="100">
+    <Window.Resources>
+        <ResourceDictionary>
+            <sys:String x:Key="str">
+                沉舟侧畔千帆过，病树前头万木春
+            </sys:String>
+            <sys:Double x:Key="db1">3.1415926</sys:Double>
+        </ResourceDictionary>
+    </Window.Resources>
+    <StackPanel>
+        <TextBlock Text="{StaticResource ResourceKey=str}" Margin="5"/>
+        <TextBlock Text="{StaticResource str}" Margin="5,0"/>
+        <!--TextBlock的Text属性只能接收string类型，double类型会因为数据类型不匹配抛异常-->
+        <!--<TextBlock Text="{StaticResource ResourceKey=db1}" Margin="5,0"/>-->
+    </StackPanel>
+</Window>
+```
+
+在检索资源时，先查找控件自己的Resources属性，如果没有这个资源程序会沿着逻辑树向上一级控件查找，如果连最顶层容器都没有这个资源，程序就会去查找 Application.Resources（也就是程序的顶级资源），如果还没找到，那就只好抛出异常了。
+
+在cs文件中找资源：
+
+```C#
+//当不知道这个key对应的资源在哪个层的控件中时
+string text = (string)this.FindResource("str");
+//当知道这个key对应的资源在哪个层的控件中时
+string text1 = (string)this.Resources["str"];
+```
 
 ## 2.2、且“静”且“动”用资源
 
+当资源被存储进资源词典后，我们可以通过两种方式来使用这些资源——静态方式和动态方式。Static和 Dynamic两个词是我们的老朋友了，当这对词一同出现的时候 `Static 指的是程序的非执行状态而 Dynamic 指的是程序运行状态`。对于资源的使用，Static 和 Dynamic 也是这个意思。
+
+- 静态资源使用(StaticResource)指的是在程序载入内存时对资源的一次性使用，之后就不再去访问这个资源了
+- 动态资源使用(DyamicResource)使用指的是在程序运行过程中仍然会去访问资源。
+
+显然，如果你确定某些资源只在程序初始化的时候使用一次、之后不会再改变，就应该使用StaticResource，而程序运行过程中还有可能改变的资源应该以DynamicResource 形式使用。拿程序的主题来举例，如果程序皮肤的颜色在运行中始终不变，以StaticResource 方式来使用资源就可以了;如果程序运行过程中允许用户更改程序皮肤的配色方案则必须以 DynamicResource 方式来使用资源。
+
+下面的案例就是分别声明了StaticResource、DyamicResource，在点击按钮时只有绑定了DyamicResource的textblock才能修改显示的值
+
+```html
+<Window x:Class="ResourceTest._02DynamicResource"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:ResourceTest"
+        mc:Ignorable="d"
+        Title="_02DynamicResource" FontSize="16" Height="200" Width="200">
+    <Window.Resources>
+        <TextBlock x:Key="res1" Text="海上生明月1"/>
+        <TextBlock x:Key="res2" Text="海上生明月2"/>
+    </Window.Resources>
+    <StackPanel>
+        <Button Margin="5,5,5,0" Content="{StaticResource res1}"/>
+        <Button Margin="5,5,5,0" Content="{DynamicResource res2}"/>
+        <Button Margin="5,5,5,0" Content="Update" Click="Button_Click"/>
+    </StackPanel>
+</Window>
+```
+
+```C#
+namespace ResourceTest
+{
+    /// <summary>
+    /// _02DynamicResource.xaml 的交互逻辑
+    /// </summary>
+    public partial class _02DynamicResource : Window
+    {
+        public _02DynamicResource()
+        {
+            InitializeComponent();
+        }
+
+        private void Button_Click(object sender, RoutedEventArgs e)
+        {
+            this.Resources["res1"] = new TextBlock() { Text = "天涯共此时1" };
+            this.Resources["res2"] = new TextBlock() { Text = "天涯共此时2" };
+        }
+    }
+}
+```
+
+效果：
+
+<img src="../TyporaImgs/image-20240427205911549.png" alt="image-20240427205911549" style="zoom:67%;" />
+
 ## 2.3、向程序添加二进制资源
+
+Windows应用程序资源的道理与 WinZip或 WinRAR 压缩包的道理差不多，实际上是把一些应用程序必须使用的资源与应用程序自身打包在一起，这样资源就不会意外丢失了(负作用就是应用程序体积会变大)。常见的应用程序资源有图标、图片、文本、音频、视频等，各种编程语言的编译器或资源编译器都有能力把这些文件编译进目标文件(最终的.exe 或.dll文件)，资源文件在目标文件里以二进制数据的形式存在、形成目标文件的资源段(ResourceSection)，使用时数据会被提取出来。
+
+为了不把资源词典里的资源和应用程序内嵌的资源搞混，我们明确地称呼资源词典里的资源为“WPF资源”或“对象资源”，称呼应用程序的内嵌资源为“程序集资源”或“二进制资源”。特别提醒一点，WPF 程序中写在`<Application,Resources>..</ApplicationResources>`标签内的资源仍然
+是WPF资源而非二进制资源。
+
+打开资源文件的方法：
+
+项目(右键) —》属性 —》资源 —》创建或打开程序集资源，添加两个资源变量
+
+![image-20240427210847626](../TyporaImgs/image-20240427210847626.png)
+
+在资源中添加后在xaml中使用`{x:Static prop:Resources.UserName}`
+
+```html
+<Window x:Class="ResourceTest._03BinaryResource"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:ResourceTest"
+        mc:Ignorable="d"
+        xmlns:prop="clr-namespace:ResourceTest.Properties"
+        Title="_03BinaryResource" Height="300" Width="300">
+    <Grid Margin="5">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="23"/>
+            <RowDefinition Height="4"/>
+            <RowDefinition Height="23"/>
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="4"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+        <TextBlock Text="{x:Static prop:Resources.UserName}"/>
+        <TextBlock x:Name="textBloxPassword" Grid.Row="2"/>
+        <TextBox Grid.Column="2" BorderBrush="Black"/>
+        <TextBox Grid.Row="2" Grid.Column="2" BorderBrush="Black"/>
+    </Grid>
+</Window>
+```
+
+注意xmal中要引用 Properties 命名空间
+
+```html
+xmlns:prop="clr-namespace:ResourceTest.Properties"
+```
+
+在cs文件中也可以使用Password资源
+
+```C#
+namespace ResourceTest
+{
+    /// <summary>
+    /// _03BinaryResource.xaml 的交互逻辑
+    /// </summary>
+    public partial class _03BinaryResource : Window
+    {
+        public _03BinaryResource()
+        {
+            InitializeComponent();
+            this.textBloxPassword.Text = Properties.Resources.Password;
+        }
+    }
+}
+```
+
+效果：
+
+<img src="../TyporaImgs/image-20240427212446897.png" alt="image-20240427212446897" style="zoom:67%;" />
+
+使用 Resources.resx最大的好处就是便于程序的国际化、本地化。如果我想把界面改为英文版只需要把资源的值改为相应的英文即可。
+
+如果需要添加的资源不是字符串而是图标、图片、音频或视频,方法就不是使用 Resources.resx了，WPF不支持这样做。在WPF中使用外部文件作为资源，仅需简单地将其加入项目即可。方法如下：需要注意在拖入前就将文件的名字改好，拖进来之后再改会导致在Resources.resx和Resource文件夹下的名字对不上（因为不知道为啥这么不智能）
+
+![image-20240427212850362](../TyporaImgs/image-20240427212850362.png)
+
+在上一个案例的基础上直接增加一个显示二进制图片资源的代码，使用 `BitmapImage` 作为图像的源，指定了资源的绝对路径
+
+```html
+<Window x:Class="ResourceTest._03BinaryResource"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:ResourceTest"
+        mc:Ignorable="d"
+        xmlns:prop="clr-namespace:ResourceTest.Properties"
+        Title="_03BinaryResource" Height="300" Width="300">
+    <Grid Margin="5">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="23"/>
+            <RowDefinition Height="4"/>
+            <RowDefinition Height="23"/>
+            <RowDefinition Height="4"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="4"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+        <TextBlock Text="{x:Static prop:Resources.UserName}"/>
+        <TextBlock x:Name="textBloxPassword" Grid.Row="2"/>
+        <TextBox Grid.Column="2" BorderBrush="Black"/>
+        <TextBox Grid.Row="2" Grid.Column="2" BorderBrush="Black"/>
+        <Image Grid.Row="4" Grid.Column="2" Width="200" Height="200" Stretch="Uniform">
+            <Image.Source>
+                <BitmapImage UriSource="/ResourceTest;component/Resources/bears.jpg" />
+            </Image.Source>
+        </Image>
+    </Grid>
+</Window>
+
+```
+
+如果在预览中能够看到图片，但是运行后就看不到了，是因为没有设置图片的生成操作，要改为【资源】，注意改为嵌入的资源也不能正常显示！
+
+原因：想让外部文件编译进目标成为二进制资源，必须在属性窗口中把文件的 BuildAction属性值设为Resource。并不是每种文件都会自动设为Rcsource，比如图片文件会，mp3 文件就不会
+
+一般情况下如果 Build Action属性被设为 Resource，则 Copy to Output Directory属性就设为 Do Not Copy；如果不希望以资源的形式使用外部文件，可以把 Build Action 设为 None，而把 Copy to Output Directory设为 Copy always。另外，Build Action属性的下拉列表里有一个颇具迷惑性的值Embedded Resource，不要选择这个值。
+
+![image-20240427215052167](../TyporaImgs/image-20240427215052167.png)
+
+效果：
+
+<img src="../TyporaImgs/image-20240427215112431.png" alt="image-20240427215112431" style="zoom:80%;" />
 
 ## 2.4、使用Pack URI 路径访问二进制资源
 
+好了！二进制资源已经被添加进我们的程序，怎样才能访问到它们呢?
+WPF对二进制资源的访问有自己的一套方法，称为PackURI路径。有时候死记硬背既能帮助读者快速学习又能帮助作者偷点小懒，比如 WPF的PackURI路径，你只需要记住这样的格式即可：
+
+```html
+pack://application,,,[/程序集名称][可选版本号][文件夹名称/]文件名称
+```
+
+又因为 `pack://application,,,`可以省略，所以简化为
+
+```html
+[文件夹名称/]文件名称
+```
+
+下面两种写法等价的（上面使用了 `BitmapImage` 作为图像的源，指定了资源的绝对路径；下面的写法是使用`Source` 属性来指定资源的相对路径）
+
+```htlm
+<Image Grid.Row="4" Grid.Column="2" Width="200" Height="200" Stretch="Uniform"
+               x:Name="img" Source="Resources/bears.jpg"/>
+<Image Grid.Row="4" Grid.Column="2" Width="200" Height="200" Stretch="Uniform"
+               x:Name="img2" Source="pack://application:,,,/Resources/bears.jpg"/>
+```
+
+在cs文件中同样可以实现此效果：
+
+```C#
+this.img.Source = new BitmapImage(new Uri(@"Resources/bears.jpg",UriKind.Relative));
+```
+
+在使用Pack URI路径时有几点需要注意：
+
+- Pack URl使用从右向左的正斜线(/)表示路径.
+- 使用缩略写法意味着是相对路径，C#代码中的 UriKind必须为 Relative 而且代表根目录的/可以省略
+- 使用完整写法时是绝对路径，C#代码中的UriKind 必须为 Absolute 并且代表根目录的/不能省略。
+- 使用相对路径时可以借助类似 DOS的语法进行导航，比如./代表同级目录、../代表父级目录。
 
 
-NuGet\Install-Package Prism.Wpf -Version 8.1.97
+

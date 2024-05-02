@@ -1942,6 +1942,6 @@ namespace WPFBinding
 
 ## 6、小结
 
-WPF 的核心理念是变传统的 U驱动程序为数据驱动 U，支撑这个理念的基础就是本章讲述的 Data Binding 和与之相关的数据校验与转换。在使用 Binding 时，最重要的事情就是准确地设置它的源和路径。
+19 1<Window x:Class="WPFUI.WrapPanelWindow"2        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"3        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"4        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"5        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"6        xmlns:local="clr-namespace:WPFUI"7        mc:Ignorable="d"8        Title="WrapPanelWindow" Height="300" Width="400">9    <WrapPanel>10        <Button Width="50" Height="50" Content="OK"/>11        <Button Width="50" Height="50" Content="OK"/>12        <Button Width="50" Height="50" Content="OK"/>13        <Button Width="50" Height="50" Content="OK"/>14        <Button Width="50" Height="50" Content="OK"/>15        <Button Width="50" Height="50" Content="OK"/>16        <Button Width="50" Height="50" Content="OK"/>17        <Button Width="50" Height="50" Content="OK"/>18    </WrapPanel>19</Window>html
 
 当学习完 Binding后，我们迎来了新的问题-为什么WPF里的元素可以通过 Binding关联到数据上，实时关注数据的变化呢？换句话说，什么样的对象才能作为Binding的目标来使用呢？这就是我们下一章要详细讲述的内容--**依赖属性与依赖对象**。

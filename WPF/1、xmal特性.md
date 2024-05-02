@@ -95,7 +95,7 @@ partial可以把一个类分拆在多处定义，只要各部分代码不冲突�
 
 ### 3.1 通过 Attribute=Vleue
 
-```xa
+```html
 <Window x:Class="HelloWPF.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -118,7 +118,7 @@ partial可以把一个类分拆在多处定义，只要各部分代码不冲突�
 
 
 
-```xmal
+```html
 <Window x:Class="HelloWPF.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -220,7 +220,7 @@ namespace HelloWPF
 
 顾名思义，属性元素指的是某个标签的一个元素对应这个标签的一个属性，即以元素的形式来表达一个实例的属性。代码描述为:
 
-```xmal
+```html
 <Button Width="120" Height="30">
        <Button.Content>
             <Rectangle Width="20" Height="20" Stroke="DarkGreen" Fill="LawnGreen"/>
@@ -232,7 +232,7 @@ LinearGradientBrush的GradientStops属性是一个GradientStop对象的集合(Gr
 
 画一个渐变填充的方形代码：
 
-```xmal
+```html
 
         <Rectangle Width="200" Height="160" Stroke="LightBlue">
             <Rectangle.Fill>
@@ -266,8 +266,6 @@ LinearGradientBrush的GradientStops属性是一个GradientStop对象的集合(Gr
             </Rectangle.Fill>
         </Rectangle>
 ```
-
-
 
 效果：
 

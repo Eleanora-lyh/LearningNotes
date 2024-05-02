@@ -28,6 +28,8 @@ DataTemplate常用的地方有3处，分别是:
 - `ItemsControl 的 ItemTemplate 属性`，相当于给 ItemsControl 的数据条目穿衣服。
 - `GridViewColumn 的 CellTemplate 属性`，相当于给 GridViewColumn 单元格里的数据穿衣服。
 
+### 2.1 UserControl实现DataTemplate功能
+
 让我们用一个例子对比 UserControl与DataTemplate的使用。例子实现的需求是这样的：
 
 有一列狗狗的数据（犬种、发源地、技能、体型大小），这列数据显示在一个ListBox里，要求ListBox的条目只需要显示狗狗的简要参数（犬种、发源地），单击某个条目后在窗体的详细内容区域显示狗狗的照片和详细参数。效果如下：
@@ -266,12 +268,37 @@ namespace TemplateTest
 
 显然，事件驱动是控件和控件之间的沟通，数据驱动则是数据与控件之间的沟通，是内容决定形式。使用 DataTemplate 就可以很方便地把事件驱动模式升级为数据驱动模式。90%的代码可以原样拷贝，另10%可以放心删除，再做一点点改动就可以了。
 
-让我们开始吧！首先把两个 UserControl 的“芯”剪切出来，用<DataTemplate>标签包装，再放进主窗体的资源词典里。最重要的一点是为 DataTemplate 里的每个控件设置 Binding，告诉各个控件应该关注数据的哪个属性。因为使用 Binding 在控件与数据间建立关联，免去了在C#代码中访问界面元素，所以 XAML 代码中的大多数 x:Name 都可以去掉，代码看上去地简洁不少。
+### 2.2 ContentTemplate和DataTemplate实现相同功能
 
 有些属性的值不能直接拿来用，比如汽车的厂商和名称不能直接拿来作为图片的路径，这时就要使用Converter。有两种办法可以在XAML代码中使用Converter：
 
 - 把Converter以资源的形式放在资源词典里(本例使用的方法)。
 - 为Converter 准备一个静态属性，形成单件模式，在XAML代码里使用{x:Static)标签扩展来访问。
+
+这里在Entity文件夹下新建一个类专门用于Name到图片路径的转换
+
+```C#
+namespace TemplateTest.Entity
+{
+    //狗狗品种名到图片地址的转换
+    public class NamePathConventor : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            string uriStr = $@"Resources/Images/{(string)value}.jpg";
+            return new BitmapImage(new Uri(uriStr, UriKind.Relative));
+            //throw new NotImplementedException();
+        }
+        //反向转换（暂未用到）
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            throw new NotImplementedException();
+        }
+    }
+}
+```
+
+让我们开始吧！首先把两个 UserControl 的“芯”剪切出来，用<DataTemplate>标签包装，再放进主窗体的资源词典里。最重要的一点是为 DataTemplate 里的每个控件设置 Binding，告诉各个控件应该关注数据的哪个属性。因为使用 Binding 在控件与数据间建立关联，免去了在C#代码中访问界面元素，所以 XAML 代码中的大多数 x:Name 都可以去掉，代码看上去地简洁不少。
 
 ```html
 <Window x:Class="TemplateTest.TemplateWindow"
@@ -330,8 +357,9 @@ namespace TemplateTest
                  ItemTemplate="{StaticResource dogItemTemplate}"/>
     </StackPanel>
 </Window>
-
 ```
+
+.cs文件中填充数据源
 
 ```C#
 namespace TemplateTest
@@ -362,21 +390,358 @@ namespace TemplateTest
 }
 ```
 
-
-
 ## 3、控件的外衣 ControlTemplate
 
-
+控件也有自己的行为，比如显示数据、执行方法、激发事件等。控件的行为要靠编程逻辑来实现，所以也可把控件的行为称为控件的算法内容。举个例子：WPF中的 CheckBox与其基类ToggleButton在功能上几乎完全一样，但外观上区别却非常大，这就是更换ControlTemplate 的结果。经过更换ControlTemplate，我们不但可以制作出披着CheckBox外衣的ToggleButton，还能制作出披着温度计外衣的ProgressBar 控件。
 
 ### 3.1、庖丁解牛看控件
 
+想知道一个控件的内部结构就必须把控件“打碎”了看一看。用于打碎控件、查看内部结构的工具就是Microsoft Expression套装中的 Blend。对于程序员来说，完全可以把 Blend 理解为一个功能更强大的窗体设计器，而对于设计师来说，可以把 Blend 理解为会写XAML代码的 Photoshop或Fireworks。
+
+首先看下TextBox和Button的内部结构，设计如下的xmal代码，并用Blend打开
+
+```html
+<Window x:Class="HelloBlend.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:HelloBlend"
+        mc:Ignorable="d"
+        Title="MainWindow" Height="180" Width="270">
+    <StackPanel>
+        <!--设置渐变色背景-->
+        <StackPanel.Background>
+            <!--不填则默认StartPoint="0,0" EndPoint="1,1"-->
+            <LinearGradientBrush StartPoint="0.5,0" EndPoint="0.5,1">
+                <!--不填则默认Offset="0"-->
+                <GradientStop Color="SkyBlue"/>
+                <GradientStop Color="MediumPurple" Offset="1"/>
+            </LinearGradientBrush>
+        </StackPanel.Background>
+        <TextBox Margin="10" Height="30" BorderBrush="Black"/>
+        <TextBox Margin="10,0" Height="30" BorderBrush="Black"/>
+        <Button Width="130" Height="30" Content="Button" Margin="10"/>
+    </StackPanel>
+</Window>
+```
+
+![image-20240502154526024](../TyporaImgs/image-20240502154526024.png)
+
+找到border的代码如下：
+
+```html
+<Setter Property="Template">
+    <Setter.Value>
+        <ControlTemplate TargetType="{x:Type TextBox}">
+            <Border x:Name="border" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="{TemplateBinding BorderThickness}" SnapsToDevicePixels="True"
+                    CornerRadius="5">
+                <ScrollViewer x:Name="PART_ContentHost" Focusable="false" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Hidden"/>
+            </Border>
+            <ControlTemplate.Triggers>
+                <Trigger Property="IsEnabled" Value="false">
+                    <Setter Property="Opacity" TargetName="border" Value="0.56"/>
+                </Trigger>
+                <Trigger Property="IsMouseOver" Value="true">
+                    <Setter Property="BorderBrush" TargetName="border" Value="{StaticResource TextBox.MouseOver.Border}"/>
+                </Trigger>
+                <Trigger Property="IsKeyboardFocused" Value="true">
+                    <Setter Property="BorderBrush" TargetName="border" Value="{StaticResource TextBox.Focus.Border}"/>
+                </Trigger>
+            </ControlTemplate.Triggers>
+        </ControlTemplate>
+    </Setter.Value>
+</Setter>
+```
+
+添加` CornerRadius="5"`
+
+```html
+<Border x:Name="border" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+        BorderThickness="{TemplateBinding BorderThickness}" SnapsToDevicePixels="True"
+        CornerRadius="5">
+    <ScrollViewer x:Name="PART_ContentHost" Focusable="false" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Hidden"/>
+</Border>
+```
+
+将刚才修改的RoundCornerTextBoxStyle应用到两个TextBox上
+
+```html
+<TextBox Style="{DynamicResource RoundCornerTextBoxStyle}" Margin="10" Height="30"
+                 BorderBrush="Black"/>
+<TextBox Style="{DynamicResource RoundCornerTextBoxStyle}" Margin="10,0" Height="30"
+                 BorderBrush="Black"/>
+```
+
+效果：
+
+<img src="../TyporaImgs/image-20240502162416708.png" alt="image-20240502162416708" style="zoom:50%;" />
+
+不知大家意识到没有，其实每个控件本身就是一棵UI 元素树。WPF的UI元素可以看作两棵树——LogicalTree 和 VisualTree，这两棵树的交点就是 ControlTemplate。如果把界面上的控件元素看作是一个结点，那元素们构成的就是LogicalTree，如果把控件内部由ControlTemplate 生成的控件也算上，那构成的就是VisualTree。换句话说，在LogicalTree上导航不会进入到控件内部，而在VisualTree 上导航则可检索到控件内部由 ControlTemplate 生成的子级控件。
+
 ### 3.2、ItemControl的PanelTemplate
+
+ListBox默认是垂直排列的结构
+
+```html
+<Grid Margin="6">
+    <ListBox>
+        <TextBlock Text="Tim"/>
+        <TextBlock Text="Tom"/>
+        <TextBlock Text="Jerry"/>
+        <TextBlock Text="Nancy"/>
+    </ListBox>
+</Grid>
+```
+
+但是修改ListBox.ItemsPanel属性值，将条目包装(ItemsPanelTemplate)在水平排列的 StackPanel中就实现ListBox的水平排列
+
+```html
+<Grid Margin="6">
+    <ListBox>
+        <ListBox.ItemsPanel>
+            <ItemsPanelTemplate>
+                <StackPanel Orientation="Horizontal"/>
+            </ItemsPanelTemplate>
+        </ListBox.ItemsPanel>
+        <TextBlock Text="Tim"/>
+        <TextBlock Text="Tom"/>
+        <TextBlock Text="Jerry"/>
+        <TextBlock Text="Nancy"/>
+    </ListBox>
+</Grid>
+```
+
+### 3.3、ItemControl的ItemTemplate
+
+`ItemTemplate` 是 `ItemsControl` 类的属性，它定义了每个数据项的数据模板，用于指定数据项如何在控件中显示。下面是一个树形结构的Demo展示了ItemTemplate的用法
+
+`HierarchicalDataTemplate` 是 WPF 中用于在树状结构控件（例如 TreeView）中定义数据项的数据模板。它允许你定义一个数据模板，用于显示每个数据项及其子项的外观和布局。
+
+```html
+<Window x:Class="HelloBlend.GradeClassGroupDemo"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:HelloBlend"
+        xmlns:entity="clr-namespace:HelloBlend.Entity"
+        mc:Ignorable="d"
+        Title="GradeClassGroupDemo" Height="300" Width="300">
+    <Grid>
+        <TreeView x:Name="treeView" >
+            <!--定义TreeView的数据模板-->
+            <TreeView.ItemTemplate>
+                <!--1层：显示GradeName，其子项是Classes-->
+                <HierarchicalDataTemplate ItemsSource="{Binding Classes}">
+                    <TextBlock Text="{Binding GradeName}"/>
+                    <!--定义1层子项的数据模板 班级层次的样式-->
+                    <HierarchicalDataTemplate.ItemTemplate>
+                        <!--2层：显示ClassName，其子项是Groups-->
+                        <HierarchicalDataTemplate ItemsSource="{Binding Groups}">
+                            <TextBlock Text="{Binding ClassName}"/>
+                            <!--定义2层子项的数据模板 小组层次的样式-->
+                            <HierarchicalDataTemplate.ItemTemplate>
+                                <DataTemplate>
+                                    <!--3层：显示GroupName-->
+                                    <TextBlock Text="{Binding GroupName}"/>
+                                </DataTemplate>
+                            </HierarchicalDataTemplate.ItemTemplate>
+                        </HierarchicalDataTemplate>
+                    </HierarchicalDataTemplate.ItemTemplate>
+                </HierarchicalDataTemplate>
+            </TreeView.ItemTemplate>
+        </TreeView>
+    </Grid>
+</Window>
+```
+
+.cs中构造数据源
+
+```C#
+namespace HelloBlend
+{
+    /// <summary>
+    /// GradeClassGroupDemo.xaml 的交互逻辑
+    /// </summary>
+    public partial class GradeClassGroupDemo : Window
+    {
+        public GradeClassGroupDemo()
+        {
+            InitializeComponent();
+            //添加小组
+            List<MyGroup> groups = new List<MyGroup>()
+            {
+                new MyGroup() {GroupName="A组"},
+                new MyGroup() {GroupName="B组"},
+                new MyGroup() {GroupName="C组"},
+            };
+            //添加年级
+            List<Grade> list = new List<Grade>()
+            {
+                new Grade(){GradeName="一年级",
+                            Classes= new List<MyClass>()
+                                    {
+                                        new MyClass(){ClassName="甲班",Groups=groups},
+                                        new MyClass(){ClassName="乙班",Groups=groups}
+                                    },
+                            },
+                 new Grade(){GradeName="二年级",
+                             Classes= new List<MyClass>()
+                                    {
+                                        new MyClass(){ClassName="甲班",Groups=groups},
+                                        new MyClass(){ClassName="乙班",Groups=groups},
+                                        new MyClass(){ClassName="丙班",Groups=groups},
+                                    },
+                             }
+            };
+            //年级数据绑定到treeView的ItemsSource属性
+            this.treeView.ItemsSource = list;
+        }
+    }
+}
+```
+
+效果：
+
+<img src="../TyporaImgs/image-20240502224924570.png" alt="image-20240502224924570" style="zoom:67%;" />
 
 ## 4、DataTemplate与ControlTemplate的关系与应用
 
 ### 4.1、DataTemplate与ControlTemplate的关系
 
+学习过 DataTemplate 和 ControlTemplate，你应该已经体会到，控件只是个数据和行为的载体、是个抽象的概念，至于它本身会长成什么样子(控件内部结构)、它的数据会长成什么样子(数据显示结构)都是靠Template生成的。`决定控件外观的是ControlTemplate，决定数据外观的是DataTemplate`，它们正是Control类的Template和 ContentTemplate 两个属性的值。
+
+DataTemplate给人的感觉的确是施加在了数据对象上，但施加在数据对象上生成的一组控件总得有个载体吧？这个载体一般是落实在一个ContentPresenter对象上。ContentPresenter 类只有ContentTemplate属性、没有 Template属性，这就证明了承载由 DataTemplate 生成的一组控件是它的专门用途。
+
+至此我们可以看出，由ControlTemplate 生成的控件树其树根就是 ControlTemplate 的目标控件，此模板化控件的 Template 属性值就是这个 ControlTemplate 实例;与之相仿，由DataTemplate 生成的控件树其树根是一个 ContentPresenter 控件，此模板化控件的ContentTemplate 属性值就是这个DataTemplate实例。因为ContentPresenter控件是 ControlTemplate 控件树上的一个结点，所以DataTemplate 控件树是 ControlTemplate 控件树的一棵子树。
+
+既然 Template 生成的控件树都有根，那么如何找到树根呢？办法非常简单，每个控件都有个名为 TemplatedParent 的属性，如果它的值不为null，说明这个控件是由 Template 自动生成的，而属性值就是应用了模板的控件(模板的目标，模板化控件)。如果由Template生成的控件使用了TemplateBinding 获取属性值，则 TemplateBinding 的数据源就是应用了这个模板的目标控件。
+
 ### 4.2、DataTemplate与ControlTemplate的应用
+
+为 Template 设置其应用目标有两种方法：
+
+- 一种是逐个设置控件的Template、ContentTemplate、ItemsTemplate、CellTemplate 等属性，不想应用 Template 的控件不设置;
+- 另一种是整体应用，即把Template 应用在某个类型的控件或数据上。
+
+把 ControlTemplate 应用在所有目标上需要借助 Style 来实现，但 Style 不能标记 x:Key，例如下面的代码：
+
+```html
+<Window x:Class="HelloBlend.TemplateTarget"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:HelloBlend"
+        mc:Ignorable="d"
+        Title="TemplateTarget" Height="150" Width="230">
+    <Window.Resources>
+        <!--样式适用于所有的 TextBox 控件-->
+        <Style TargetType="{x:Type TextBox}">
+            <!--设置TextBox控件的Template属性(定义了 TextBox 控件的外观)-->
+            <Setter Property="Template">
+                <Setter.Value>
+                    <!--定义了 TextBox 控件的外观模板-->
+                    <ControlTemplate TargetType="{x:Type TextBox}">
+                        <Border x:Name="border" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                SnapsToDevicePixels="True"
+                                CornerRadius="5">
+                            <ScrollViewer x:Name="PART_ContentHost" Focusable="false" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Hidden"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="Margin" Value="5"/>
+            <Setter Property="BorderBrush" Value="Black"/>
+            <Setter Property="Height" Value="25"/>
+        </Style>
+    </Window.Resources>
+    <StackPanel>
+        <TextBox/>
+        <TextBox/>
+        <TextBox Style="{x:Null}" Margin="5"/>
+    </StackPanel>
+</Window>
+```
+
+![image-20240502190247217](../TyporaImgs/image-20240502190247217.png)
+
+把 ControlTemplate 应用在所有目标上需要借助 Style 来实现，但 Style 不能标记 x:Key，例如下面的代码：实现水平柱状图效果，每行由一个方形+年份+数值组成
+
+设计显示的数据样式：
+
+```C#
+namespace HelloBlend.Entity
+{
+    public class Unit
+    {
+        public int Price { get; set; }
+        public string Year { get; set; }
+    }
+}
+```
+
+```html
+<Window x:Class="HelloBlend.DataTemplateAll"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:HelloBlend"
+        xmlns:entity="clr-namespace:HelloBlend.Entity"
+        xmlns:c="clr-namespace:System.Collections;assembly=mscorlib"
+        mc:Ignorable="d"
+        Title="DataTemplateAll" Height="300" Width="300">
+    <Window.Resources>
+        <!--设计DataTemplate-->
+        <DataTemplate DataType="{x:Type entity:Unit}">
+            <Grid>
+                <!--水平排列的方形+数值-->
+                <StackPanel Orientation="Horizontal">
+                    <Grid>
+                        <Rectangle Stroke="Yellow" Fill="Orange" Width="{Binding Price}"/>
+                        <TextBlock Text="{Binding Year}"/>
+                    </Grid>
+                    <TextBlock Text="{Binding Price}" Margin="5,0"/>
+                </StackPanel>
+            </Grid>
+        </DataTemplate>
+        <!--数据源-->
+        <c:ArrayList x:Key="ds">
+            <entity:Unit Year="2001年" Price="100"/>
+            <entity:Unit Year="2002年" Price="120"/>
+            <entity:Unit Year="2003年" Price="130"/>
+            <entity:Unit Year="2004年" Price="140"/>
+            <entity:Unit Year="2005年" Price="150"/>
+            <entity:Unit Year="2006年" Price="160"/>
+        </c:ArrayList>
+    </Window.Resources>
+    <StackPanel>
+        <ListBox ItemsSource="{StaticResource ds}"/>
+        <ComboBox ItemsSource="{StaticResource ds}" Margin="5"/>
+    </StackPanel>
+</Window>
+```
+
+效果：
+
+<img src="../TyporaImgs/image-20240502192239375.png" alt="image-20240502192239375" style="zoom:70%;" />
+
+此时 DataTemplate 会自动加载到所有 Unit 类型对象上,尽管我并没有为ListBox和ComboBox指定 ItemsTemplate
+
+```html
+
+```
+
+```C#
+
+```
+
+
 
 ### 4.3、寻找失落的控件
 

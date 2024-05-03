@@ -1082,9 +1082,373 @@ namespace HelloBlend
 
 ## 5、深入浅出话Style
 
+构成Style最重要的两种元素是Setter和Trigger，Setter 类帮助我们设置控件的静态外观风格，Trigger 类则帮助我们设置控件的行为风格。
+
 ### 5.1、Style中的Setter
+
+Setter设置属性值的设置器。我们给属性赋值的时候一般都采用“属性名=属性值”的形式。Setter类的Property 属性用来指明你想为目标的哪个属性赋值;Setter 类的 Value属性则是你提供的属性值。
+
+下面的例子中在 Window的资源词典中放置一个针对TextBlock的Style，Style中使用若干Setter来设定 TextBlock 的一些属性，这样程序中的TextBlock 就会具有统一的风格，除非你使用{x:Null)显示地清空 Style。
+
+```html
+<Window x:Class="StyleTest.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:StyleTest"
+        mc:Ignorable="d"
+        Title="MainWindow" Height="132" Width="300">
+    <Window.Resources>
+        <Style TargetType="TextBlock">
+            <Style.Setters>
+                <Setter Property="FontSize" Value="24"/>
+                <Setter Property="TextDecorations" Value="Underline"/>
+                <Setter Property="FontStyle" Value="Italic"/>
+            </Style.Setters>
+        </Style>
+    </Window.Resources>
+    <StackPanel Margin="5">
+        <TextBlock Text="Hello WPF"/>
+        <TextBlock Text="This is a sample for style"/>
+        <TextBlock Text="by yh 2024.5.3" Style="{x:Null}"/>
+    </StackPanel>
+</Window>
+```
+
+因为 Style 的内容属性是 Setters，所以代码中的<Style.Setters>可以省略
+
+```html
+<Style TargetType="TextBlock">
+    <Style.Setters>
+        <Setter Property="FontSize" Value="24"/>
+        <Setter Property="TextDecorations" Value="Underline"/>
+        <Setter Property="FontStyle" Value="Italic"/>
+    </Style.Setters>
+</Style>
+```
+
+简化为
+
+```html
+<Style TargetType="TextBlock">
+    <Setter Property="FontSize" Value="24"/>
+    <Setter Property="TextDecorations" Value="Underline"/>
+    <Setter Property="FontStyle" Value="Italic"/>
+</Style>
+```
+
+效果 ：
+
+<img src="../TyporaImgs/image-20240503203158653.png" alt="image-20240503203158653" style="zoom:80%;" />
+
+根据上面这个例子我们可以推知，如果想设置控件的ControlTemplate，只需要把Setter的Property设为Template 并为 Value 提供一个 ControlTemplate 对象即可。
 
 ### 5.2、Style中的Trigger
 
-NuGet\Install-Package Prism.Wpf -Version 8.1.97
+Trigger 触发器，即当某些条件满足时会触发一个行为（比如某些值的变化或动画的发生等）。触发器比较像事件。事件一般是由用户操作触发的，而触发器除了有事件触发型的EventTrigger 外还有数据变化触发型的 Trigger/DataTrigger 及多条件触发型的 MultiTrigger/MultiDataTrigger 等。
 
+#### 5.2.1 基本 Trigger
+
+Trigger 类是最基本的触发器。类似于 Setter，Trigger也有 Propery和 Value 这两个属性，Property是 Trigger 关注的属性名称，Value 是触发条件。Trigger 类还有一个 Setters属性，此属性值是一组Setter，一旦触发条件被满足，这组 Setter 的“属性一值”就会被应用，触发条件不再满足后，各属性值会被还原。
+
+下面这个例子中包含一个针对CheckBox的Style，当CheckBox的IsChecked 属性为 true 的时候字的前景色变为橙色，字体变为20号。XAML代码如下：
+
+```html
+<Window x:Class="StyleTest.BasicTriggerWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:StyleTest"
+        mc:Ignorable="d"
+        Title="BasicTriggerWindow" Height="130" Width="300">
+    <Window.Resources>
+        <Style TargetType="CheckBox">
+            <!--Trigger属性不是Style的内容属性，所以<Style.Triggers>不能省略-->
+            <Style.Triggers>
+                <Trigger Property="IsChecked" Value="True">
+                    <!--Setters属性是Trigger的内容属性，所以<Trigger.Setters>可以省略-->
+                    <!--<Trigger.Setters>-->
+                    <Setter Property="FontSize" Value="20"/>
+                    <Setter Property="Foreground" Value="Orange"/>
+                    <!--</Trigger.Setters>-->
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </Window.Resources>
+    <StackPanel>
+        <CheckBox Content="悄悄的我走了" Margin="5"/>
+        <CheckBox Content="正如我悄悄的来" Margin="5,0"/>
+        <CheckBox Content="我挥一挥衣袖" Margin="5"/>
+        <CheckBox Content="不带走一片云彩" Margin="5,0"/>
+    </StackPanel>
+</Window>
+```
+
+效果：
+
+![image-20240503204202904](../TyporaImgs/image-20240503204202904.png)
+
+#### 5.2.2 多条件 MultiTrigger
+
+MultiTrigger其实叫MultiConditionTrigger 更合适，因为必须多个条件同时成立时才会被触发。MultiTrigger比 Trigger多了一个Conditions属性，需要同时成立的条件就存储在这个集合中。
+
+让我们稍微改动一下上面的例子，要求同时满足CheckBox被选中且 Content 为“正如我悄悄的来”时才会被触发。
+
+```html
+<Window x:Class="StyleTest.MultiTriggerWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:StyleTest"
+        mc:Ignorable="d"
+        Title="MultiTriggerWindow" Height="130" Width="300">
+    <Window.Resources>
+        <Style TargetType="CheckBox">
+            <Style.Triggers>
+                <MultiTrigger >
+                    <MultiTrigger.Conditions>
+                        <Condition Property="IsChecked" Value="true"/>
+                        <Condition Property="Content" Value="正如我悄悄的来"/>
+                    </MultiTrigger.Conditions>
+                    <MultiTrigger.Setters>
+                        <Setter Property="FontSize" Value="20"/>
+                        <Setter Property="Foreground" Value="Orange"/>
+                    </MultiTrigger.Setters>
+                </MultiTrigger>
+            </Style.Triggers>
+        </Style>
+    </Window.Resources>
+    <StackPanel>
+        <CheckBox Content="悄悄的我走了" Margin="5"/>
+        <CheckBox Content="正如我悄悄的来" Margin="5,0"/>
+        <CheckBox Content="我挥一挥衣袖" Margin="5"/>
+        <CheckBox Content="不带走一片云彩" Margin="5,0"/>
+    </StackPanel>
+</Window>
+```
+
+效果：
+
+![image-20240503205018508](../TyporaImgs/image-20240503205018508.png)
+
+#### 5.2.3 数据触发 DataTrigger
+
+程序中经常会遇到基于数据执行某些判断情况，遇到这种情况时我们可以考虑使用DataTrigger。DataTrigger 对象的 Binding属性会把数据源源不断送过来，一旦送来的值与 Value 属性一致，DataTrigger 即被触发。
+
+下面例子中，当 TextBox的 Text长度小于7个字符时其 Border 会保持红色。XAML 代码如下：
+
+```html
+<Window x:Class="StyleTest.DataTriggerWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:StyleTest"
+        xmlns:entity="clr-namespace:StyleTest.Entity"
+        mc:Ignorable="d"
+        Title="DataTriggerWindow" Height="130" Width="300">
+    <Window.Resources>
+        <entity:LengthValidConverter x:Key="converter"/>
+        <Style TargetType="TextBox">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding RelativeSource={x:Static RelativeSource.Self},
+                             Path=Text.Length,Converter={StaticResource converter}}" Value="false">
+                    <Setter Property="BorderBrush" Value="Red"/>
+                    <Setter Property="BorderThickness" Value="1"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </Window.Resources>
+    <StackPanel>
+        <TextBox Margin="5"/>
+        <TextBox Margin="5,0"/>
+        <TextBox Margin="5"/>
+    </StackPanel>
+</Window>
+```
+
+这个例子中唯一需要解释的就是 DataTrigger 的Binding。为了将控件自己作为数据源，我们使用了 RelativeSource，初学者经常认为“不明确指出 Source 的值 Binding 就会将控件自己作为数据的来源”，这是错误的，因为不明确指出 Source 时 Binding 会把控件的 DataContext 属性当作数据源而非把控件自身当作数据源。Binding的Path 被设置为 Text.Length，即我们关注的是字符串的长度。长度是一个具体的数字，如何基于这个长度值做判断呢?这就用到了Converter。我们创建如
+下的Converter：
+
+```C#
+namespace StyleTest.Entity
+{
+    public class LengthValidConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            int length = (int)value;
+            return length > 6 ? true : false;
+            //throw new NotImplementedException();
+        }
+        //未使用到
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            throw new NotImplementedException();
+        }
+    }
+}
+```
+
+效果：
+
+<img src="../TyporaImgs/image-20240503210802886.png" alt="image-20240503210802886" style="zoom:80%;" />
+
+经Converter 转换后，长度值会转换成bool类型值。DataTrigger的Value 被设置为false，也就是说当 TextBox的文本长度小于7时 DataTrigger 会使用自己的一组 Seter 把TextBox 的边框设置为红色。
+
+#### 5.2.4 多数据条件触发 MultiDataTrigger
+
+有时我们会遇到要求多个数据条件同时满足时才能触发变化的需求，此时可以考虑使用MultiDataTrigger。
+
+比如有这样一个需求：用户界面上使用ListBox显示了一列Student数据，当Student对象同时满足ID为2、Name 为 Tom 的时候，条目就高亮显示。示例的XAML代码如下：
+
+```html
+<Window x:Class="StyleTest.MultiDataWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:StyleTest"
+        mc:Ignorable="d"
+        Title="MultiDataWindow" Height="146" Width="300">
+    <Window.Resources>
+        <Style TargetType="ListBoxItem">
+            <!--设置ListBoxItem的模板样式-->
+            <Setter Property="ContentTemplate">
+                <Setter.Value>
+                    <DataTemplate>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{Binding Id}" Width="60"/>
+                            <TextBlock Text="{Binding Name}" Width="120"/>
+                            <TextBlock Text="{Binding Age}" Width="60"/>
+                        </StackPanel>
+                    </DataTemplate>
+                </Setter.Value>
+            </Setter>
+            <!--设置数据触发条件，触发后效果-->
+            <Style.Triggers>
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding Path=Id}" Value="4"/>
+                        <Condition Binding="{Binding Path=Name}" Value="Tom"/>
+                    </MultiDataTrigger.Conditions>
+                    <MultiDataTrigger.Setters>
+                        <Setter Property="Background" Value="Orange"/>
+                    </MultiDataTrigger.Setters>
+                </MultiDataTrigger>
+            </Style.Triggers>
+        </Style>
+    </Window.Resources>
+    <StackPanel>
+        <ListBox x:Name="listBoxStudent" Margin="5"/>
+    </StackPanel>
+</Window>
+```
+
+列表所需的Student类：
+
+```C#
+namespace StyleTest.Entity
+{
+    public class Student
+    {
+        public int Id { get; set; }
+        public string Name { get; set; }
+        public int Age { get; set; }
+
+        public Student(int id, string name, int age)
+        {
+            Id = id;
+            Name = name;
+            Age = age;
+        }
+    }
+}
+```
+
+cs文件绑定数据源
+
+```C#
+namespace StyleTest
+{
+    /// <summary>
+    /// MultiDataWindow.xaml 的交互逻辑
+    /// </summary>
+    public partial class MultiDataWindow : Window
+    {
+        public MultiDataWindow()
+        {
+            InitializeComponent();
+            this.listBoxStudent.ItemsSource = new List<Student>()
+            {
+                new Student(1,"Tim",21),
+                new Student(2,"Jack",22),
+                new Student(3,"Nancy",22),
+                new Student(4,"Tom",20),
+                new Student(5,"Cherry",24),
+            };
+        }
+    }
+}
+
+```
+
+效果：
+
+![image-20240503213455723](../TyporaImgs/image-20240503213455723.png)
+
+#### 5.2.5 事件触发 EventTrigger
+
+EventTrigger 是触发器中最特殊的一个。
+
+首先，它不是由属性值或数据的变化来触发而是由事件来触发；
+
+其次，被触发后它并非应用一组Setter，而是执行一段动画。因此，UI 层的动画效果往往与 EventTrigger 相关联。
+
+在下面这个例子中创建了一个针对 Button的 Style，这个 Style 包含两个 EventTrigger，一个由MouseEnter事件触发，另一个由MouseLeave事件触发。XAML代码如下：
+
+```html
+<Window x:Class="StyleTest.EventTriggerWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:StyleTest"
+        mc:Ignorable="d"
+        Title="EventTriggerWindow" Height="240" Width="240">
+    <Window.Resources>
+        <Style TargetType="Button">
+            <Style.Triggers>
+                <!--鼠标进入-->
+                <EventTrigger RoutedEvent="MouseEnter">
+                    <BeginStoryboard>
+                        <Storyboard>
+                            <DoubleAnimation To="150" Duration="0:0:0.2" Storyboard.TargetProperty="Width"/>
+                            <DoubleAnimation To="150" Duration="0:0:0.2" Storyboard.TargetProperty="Height"/>
+                        </Storyboard>
+                    </BeginStoryboard>
+                </EventTrigger>
+                <!--鼠标离开-->
+                <EventTrigger RoutedEvent="MouseLeave">
+                    <BeginStoryboard>
+                        <Storyboard>
+                            <DoubleAnimation Duration="0:0:0.2" Storyboard.TargetProperty="Width"/>
+                            <DoubleAnimation Duration="0:0:0.2" Storyboard.TargetProperty="Height"/>
+                        </Storyboard>
+                    </BeginStoryboard>
+                </EventTrigger>
+            </Style.Triggers>
+        </Style>
+    </Window.Resources>
+    <Canvas>
+        <Button Width="40" Height="40" Content="OK"/>
+    </Canvas>
+</Window>
+```
+
+效果：
+
+<img src="../TyporaImgs/ZoomInAndOut.gif" alt="image-20240503213455723" style="zoom:80%;" />

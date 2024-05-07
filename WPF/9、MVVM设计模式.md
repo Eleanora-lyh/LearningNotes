@@ -236,7 +236,6 @@ namespace MVVMTest.ViewModels
             set
             {
                 input2 = value;
-               
                 this.RaisePropertyChanged(nameof(Input2));
             }
         }

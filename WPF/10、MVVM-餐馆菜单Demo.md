@@ -191,7 +191,8 @@ namespace MVVMTest2.Services
     {
         public void PlaceOrder(List<string> dishes)
         {
-            File.WriteAllLines(@"\order.text",dishes.ToArray());
+            //存储到项目所在盘的order.txt文件中
+            File.WriteAllLines(@"\order.txt",dishes.ToArray());
         }
     }
 }
@@ -500,6 +501,98 @@ namespace MVVMTest2.ViewModels
     </Border>
 </Window>
 ```
+
+对于这里可能会感到疑惑：
+
+外层的`<DataGrid ItemsSource="{Binding DishList}">`绑定的数据源是DishList，DishList是窗体ViewModel中定义的一个属性具体如下：其类型为`List<DishItemViewModel>`
+
+```C#
+ //3、DishList存储菜单信息
+ private List<DishItemViewModel> _dishList;
+
+ public List<DishItemViewModel> DishList
+ {
+     get { return _dishList; }
+     set { SetProperty(ref _dishList, value); }
+ }
+```
+
+DishItemViewModel的定义如下：
+
+```C#
+class DishItemViewModel : BindableBase
+{
+    public Dish DishItem { get; set; }
+    private bool _isSelected;
+    //是否勾选
+    public bool IsSelected
+    {
+        get { return _isSelected; }
+        set
+        {
+            SetProperty(ref _isSelected, value);
+        }
+    }
+}
+```
+
+所以每个条目各列的值都是从 `public Dish DishItem { get; set; }` 中取的，所以绑定代码如下：数据源为 DishItem.Score
+
+```html
+<DataGridTextColumn Width="120"
+                    Binding="{Binding DishItem.Score}"
+                    Header="推荐分数" />
+```
+
+但是是否勾选是下面的属性获取的
+
+```C#
+ private bool _isSelected;
+    //是否勾选
+    public bool IsSelected
+    {
+        get { return _isSelected; }
+        set
+        {
+            SetProperty(ref _isSelected, value);
+        }
+    }
+```
+
+` IsChecked="{Binding Path=IsSelected"` 所以数据源为 IsSelected
+
+此外由于checkbox这里还关联了右下角数值的值，所以额外还需要给Command属性赋值，
+
+```html
+
+<!--  这里是自定义的列内容  -->
+<DataGridTemplateColumn Width="120" Header="选中"
+                        SortMemberPath="IsSelected">
+    <DataGridTemplateColumn.CellTemplate>
+        <DataTemplate>
+            <CheckBox HorizontalAlignment="Center" VerticalAlignment="Center"
+                      Command="{Binding Path=DataContext.SelectItemCommand, RelativeSource={RelativeSource Mode=FindAncestor, AncestorType={x:Type DataGrid}}}"
+                      IsChecked="{Binding Path=IsSelected, UpdateSourceTrigger=PropertyChanged}" />
+        </DataTemplate>
+    </DataGridTemplateColumn.CellTemplate>
+</DataGridTemplateColumn>
+```
+
+将复选框的命令绑定到位于 `DataGrid` 控件的视图模型中的 `SelectItemCommand` 命令。这意味着当用户在 UI 中勾选或取消勾选复选框时，`SelectItemCommand` 命令会在视图模型中执行相应的逻辑。
+
+当你直接使用 `Command="{Binding Path=DataContext.SelectItemCommand}"` 时，绑定系统会尝试从 `CheckBox` 的上下文中查找 `SelectItemCommand` 属性。但实际上，`SelectItemCommand` 属性是定义在 `DataGrid` 控件的视图模型中的。
+
+为了解决这个问题，我们使用了相对源对象的绑定 (`RelativeSource`) 来告诉绑定系统去查找 `DataGrid` 控件，然后使用它的数据上下文对象，即视图模型，来获取 `SelectItemCommand` 属性。这样就确保了命令绑定是从正确的数据上下文对象中获取的。
+
+上下文实际上是在Windows中定义的，但是绑定到DataGrid中仍可以实现一样的效果，这是因为通过使用 `RelativeSource`，可以指定要查找的元素以及其相对于当前元素的位置关系。在这种情况下，我们使用了 `AncestorType` 模式，指定要查找的是 `DataGrid` 控件，以及它是当前元素的祖先。
+
+```html
+Command="{Binding DataContext.SelectItemCommand, RelativeSource={RelativeSource AncestorType={x:Type Window}}}"
+
+Command="{Binding Path=DataContext.SelectItemCommand, RelativeSource={RelativeSource Mode=FindAncestor, AncestorType={x:Type DataGrid}}}"
+```
+
+
 
 ## 5、效果：
 

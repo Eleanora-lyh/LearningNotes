@@ -686,7 +686,7 @@ DataTemplate给人的感觉的确是施加在了数据对象上，但施加在�
 
 把 ControlTemplate 应用在所有目标上需要借助 Style 来实现，但 Style 不能标记 x:Key，例如下面的代码：
 
-```html
+```xml
 <Window x:Class="HelloBlend.TemplateTarget"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -864,7 +864,7 @@ namespace HelloBlend
 
 下面是又一个样例：展示了什么时候使用FindName寻找生成控件属性，什么时候直接使用底层数据
 
-```html
+```xml
 <Window x:Class="HelloBlend.DataTemplateInner1"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -1154,7 +1154,7 @@ Trigger 类是最基本的触发器。类似于 Setter，Trigger也有 Propery�
 
 下面这个例子中包含一个针对CheckBox的Style，当CheckBox的IsChecked 属性为 true 的时候字的前景色变为橙色，字体变为20号。XAML代码如下：
 
-```html
+```xml
 <Window x:Class="StyleTest.BasicTriggerWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -1196,7 +1196,7 @@ MultiTrigger其实叫MultiConditionTrigger 更合适，因为必须多个条件�
 
 让我们稍微改动一下上面的例子，要求同时满足CheckBox被选中且 Content 为“正如我悄悄的来”时才会被触发。
 
-```html
+```xml
 <Window x:Class="StyleTest.MultiTriggerWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -1305,7 +1305,7 @@ namespace StyleTest.Entity
 
 比如有这样一个需求：用户界面上使用ListBox显示了一列Student数据，当Student对象同时满足ID为2、Name 为 Tom 的时候，条目就高亮显示。示例的XAML代码如下：
 
-```html
+```xml
 <Window x:Class="StyleTest.MultiDataWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -1410,7 +1410,7 @@ EventTrigger 是触发器中最特殊的一个。
 
 在下面这个例子中创建了一个针对 Button的 Style，这个 Style 包含两个 EventTrigger，一个由MouseEnter事件触发，另一个由MouseLeave事件触发。XAML代码如下：
 
-```html
+```xml
 <Window x:Class="StyleTest.EventTriggerWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"

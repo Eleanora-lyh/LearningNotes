@@ -1143,7 +1143,7 @@ xmal中设置一个按钮
 
 ```
 
-点击后触发实践，计算两数之和
+点击后触发事件，计算两数之和
 
 ```C#
 using System;
@@ -1941,7 +1941,5 @@ namespace WPFBinding
 ![image-20240420102753969](../TyporaImgs/image-20240420102753969.png)
 
 ## 6、小结
-
-19 1<Window x:Class="WPFUI.WrapPanelWindow"2        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"3        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"4        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"5        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"6        xmlns:local="clr-namespace:WPFUI"7        mc:Ignorable="d"8        Title="WrapPanelWindow" Height="300" Width="400">9    <WrapPanel>10        <Button Width="50" Height="50" Content="OK"/>11        <Button Width="50" Height="50" Content="OK"/>12        <Button Width="50" Height="50" Content="OK"/>13        <Button Width="50" Height="50" Content="OK"/>14        <Button Width="50" Height="50" Content="OK"/>15        <Button Width="50" Height="50" Content="OK"/>16        <Button Width="50" Height="50" Content="OK"/>17        <Button Width="50" Height="50" Content="OK"/>18    </WrapPanel>19</Window>html
 
 当学习完 Binding后，我们迎来了新的问题-为什么WPF里的元素可以通过 Binding关联到数据上，实时关注数据的变化呢？换句话说，什么样的对象才能作为Binding的目标来使用呢？这就是我们下一章要详细讲述的内容--**依赖属性与依赖对象**。

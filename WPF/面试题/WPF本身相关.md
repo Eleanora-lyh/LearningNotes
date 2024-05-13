@@ -57,7 +57,7 @@
 
 因此，路由事件和命令传递使用不同的树状结构，是因为它们的传递方式和使用目的不同。可视树用于描述界面元素的层次关系和显示，而逻辑树用于描述界面元素的逻辑关系和功能组织。这样，WPF可以根据不同的需求和场景，在可视树和逻辑树上采取不同的传递方式和处理机制
 
-### WPF的DependencyObject以及其子类
+### 6、WPF的DependencyObject以及其子类
 
 DependencyObject的继承关系如下图：
 
@@ -76,3 +76,54 @@ DependencyObject的继承关系如下图：
 4. `DependencyObject`类增加的功能包括：
    - 依赖属性系统：`DependencyObject`提供了依赖属性系统的功能，它定义了`GetValue`和`SetValue`等方法，用于读取和设置依赖属性的值。
    - 数据绑定：`DependencyObject`支持数据绑定机制，可以使用`Binding`来连接界面元素和数据源。
+
+### 15、在WPF项目什么是App.xaml？
+
+答：App.xaml 是 WPF 项目的入口文件。它定义了应用程序的根元素，并包含应用程序的启动脚本。
+
+App.xaml 文件由 XAML 语言编写。XAML 是一种标记语言，用于描述 WPF 元素的结构和样式。
+
+App.xaml 文件的根元素是 <Application> 元素。<Application> 元素定义了应用程序的名称、版本和启动脚本。
+
+App.xaml 文件的启动脚本是 <Application.StartupUri> 属性的值。<Application.StartupUri> 属性指定了应用程序启动时要显示的窗口。
+
+
+
+它定义了应用程序的全局资源和应用程序级别的事件处理程序。下面让我来解释App.xaml文件的一些重要部分。
+
+1. Application标记：
+   App.xaml文件的根元素是`<Application>`标记，表示应用程序的入口点。这个标记中包含了一些属性，用于配置应用程序的行为。
+
+2. ResourceDictionary：
+   在`<Application>`标记内部，我们可以定义全局资源，这些资源可以在整个应用程序中共享和访问。资源可以是样式、模板、数据绑定等，用于定义应用程序的外观和行为。
+
+   ```xml
+   <Application.Resources>
+       <ResourceDictionary>
+           <!-- 全局资源定义 -->
+       </ResourceDictionary>
+   </Application.Resources>
+   ```
+
+3. StartupUri：
+   `StartupUri`属性指定了应用程序启动时要打开的主窗口。我们可以设置为一个XAML文件，例如`<StartupUri>MainWindow.xaml</StartupUri>`，这样应用程序启动后将会显示MainWindow.xaml中定义的窗口。
+
+   ```xml
+   <Application.StartupUri>
+       <Uri>MainWindow.xaml</Uri>
+   </Application.StartupUri>
+   ```
+
+4. 事件处理程序：
+   App.xaml文件还可以包含应用程序级别的事件处理程序。例如，我们可以在`<Application>`标记内部定义`<Application.Resources>`之前，添加`<Application.Startup>`和`<Application.Exit>`等事件处理程序。
+
+   ```xml
+   <Application.Startup>
+       <!-- 应用程序启动事件处理程序 -->
+   </Application.Startup>
+   <Application.Exit>
+       <!-- 应用程序退出事件处理程序 -->
+   </Application.Exit>
+   ```
+
+App.xaml文件的作用是为整个应用程序提供了一个全局的配置和资源定义的地方。通过在App.xaml文件中定义全局资源和事件处理程序，我们可以在应用程序的各个部分共享和使用它们，从而提供一致的外观和行为。

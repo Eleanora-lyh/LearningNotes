@@ -289,3 +289,335 @@ namespace PrismTest.ViewModels
 效果：
 
 <img src="../TyporaImgs/AreaChangeABC.gif" style="zoom:80%;" />
+
+## 4、模块化
+
+在主项目中使用其他项目作为模块，有两种方法：
+
+
+
+1）在刚刚解决方案里添加两个WPF项目ModuleA、ModuleB，并通过 项目——属性——应用程序——常规——输出类型——》类库的方式将输出改为类库项目，分别新建ViewA、ViewB文件夹在其中添加两个UserControl，xmal代码如下：
+
+```xml
+<UserControl x:Class="ModuleA.Views.ViewA" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:local="clr-namespace:ModuleA.Views" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             d:DesignHeight="450" d:DesignWidth="800"
+             mc:Ignorable="d">
+    <Grid>
+        <TextBlock Text="我是模块A" FontSize="100"/>
+    </Grid>
+</UserControl>
+
+```
+
+```xml
+<UserControl x:Class="ModuleB.Views.ViewB" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:local="clr-namespace:ModuleB.Views" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             d:DesignHeight="450" d:DesignWidth="800"
+             mc:Ignorable="d">
+    <Grid>
+        <TextBlock Text="我是模块B" FontSize="100"/>
+    </Grid>
+</UserControl>
+
+```
+
+2）在ModuleA、ModuleB下分别新建一个ModuleAProfile，用于注册两个窗口的的目录页
+
+```C#
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using ModuleA.Views;
+using Prism.Ioc;
+using Prism.Modularity;
+
+namespace ModuleA
+{
+    public class ModuleAProfile : IModule
+    {
+        //依赖注入将ViewA的UserControl注册为导航页面
+        public void RegisterTypes(IContainerRegistry containerRegistry)
+        {
+            containerRegistry.RegisterForNavigation<ViewA>();
+        }
+
+        public void OnInitialized(IContainerProvider containerProvider)
+        {
+        }
+    }
+}
+```
+
+```C#
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using ModuleB.Views;
+using Prism.Ioc;
+using Prism.Modularity;
+
+namespace ModuleB
+{
+    public class ModuleBProfile :IModule
+    {
+        public void RegisterTypes(IContainerRegistry containerRegistry)
+        {
+            containerRegistry.RegisterForNavigation<ViewB>();
+        }
+
+        public void OnInitialized(IContainerProvider containerProvider)
+        {
+        }
+    }
+}
+```
+
+### 第一种：添加项目引用+ConfigureModuleCatalog
+
+3）主项目引用上面的ModuleA、ModuleB项目，app.xmal.cs中注释掉原来的RegisterTypes内部内容，重写ConfigureModuleCatalog方法来添加或定义模块，告诉Prism框架应用程序中哪些模块可用
+
+```C#
+using System.Configuration;
+using System.Data;
+using System.Windows;
+using System.Windows.Controls;
+using DryIoc;
+using Prism.DryIoc;
+using Prism.Ioc;
+using Prism.Modularity;
+using Prism.Regions;
+using PrismTest.Views;
+using ModuleA;
+using ModuleB;
+
+namespace PrismTest
+{
+    /// <summary>
+    /// Interaction logic for App.xaml
+    /// </summary>
+    public partial class App : PrismApplication
+    {
+        /// <summary>
+        /// 注入服务
+        /// </summary>
+        /// <param name="containerRegistry"></param>
+        /// <exception cref="NotImplementedException"></exception>
+        protected override void RegisterTypes(IContainerRegistry containerRegistry)
+        { // 注册区域
+            
+            //将三个UserControl注册为导航页面
+            //Prism框架会自动创建一个新的页面实例，并将其作为导航目标展示给用户。当导航离开该页面时，Prism框架会自动销毁该页面实例，以释放资源并确保页面不再占用内存。
+            //containerRegistry.RegisterForNavigation<UserControlA>("A");
+            //containerRegistry.RegisterForNavigation<UserControlB>("B");
+            //containerRegistry.RegisterForNavigation<UserControlC>("C");
+        }
+        //来添加或定义模块，告诉Prism框架应用程序中哪些模块可用
+        protected override void ConfigureModuleCatalog(IModuleCatalog moduleCatalog)
+        {
+            moduleCatalog.AddModule<ModuleAProfile>();
+            moduleCatalog.AddModule<ModuleBProfile>();
+            base.ConfigureModuleCatalog(moduleCatalog);
+        }
+
+        /// <summary>
+        /// 设置启动页
+        /// </summary>
+        /// <returns></returns>
+        /// <exception cref="NotImplementedException"></exception>
+        protected override Window CreateShell()
+        {
+            //将MainWindow设置为启动页
+            return Container.Resolve<MainWindow>();
+            //throw new NotImplementedException();
+        }
+    }
+}
+```
+
+4）MainWindow中的`CommandParameter="A"`改为`CommandParameter="ViewA"`
+
+此种方式子模块和主应用之间耦合度较高，当模块增加时需要重新添加应用，且需要在app.xmal.cs的ConfigureModuleCatalog方法中加代码。
+
+### 第二种：引用dll文件+CreateModuleCatalog
+
+1）在主应用下建一个名为Modules的文件夹，其中添加模块A、模块B UserControl的生成的dll文件即：PrismTest\ModuleA\bin\Debug\net6.0-windows\ModuleA.dll、PrismTest\ModuleA\bin\Debug\net6.0-windows\ModuleB.dll
+
+2）在app.xmal.cs的ConfigureModuleCatalog方法中重写`CreateModuleCatalog`
+
+```C#
+using System.Configuration;
+using System.Data;
+using System.Windows;
+using System.Windows.Controls;
+using DryIoc;
+using Prism.DryIoc;
+using Prism.Ioc;
+using Prism.Modularity;
+using Prism.Regions;
+using PrismTest.Views;
+//using ModuleA;
+//using ModuleB;
+
+namespace PrismTest
+{
+    /// <summary>
+    /// Interaction logic for App.xaml
+    /// </summary>
+    public partial class App : PrismApplication
+    {
+        /// <summary>
+        /// 注入服务
+        /// </summary>
+        /// <param name="containerRegistry"></param>
+        /// <exception cref="NotImplementedException"></exception>
+        protected override void RegisterTypes(IContainerRegistry containerRegistry)
+        { // 注册区域
+            
+            //将三个UserControl注册为导航页面
+            //Prism框架会自动创建一个新的页面实例，并将其作为导航目标展示给用户。当导航离开该页面时，Prism框架会自动销毁该页面实例，以释放资源并确保页面不再占用内存。
+            //containerRegistry.RegisterForNavigation<UserControlA>("A");
+            //containerRegistry.RegisterForNavigation<UserControlB>("B");
+            //containerRegistry.RegisterForNavigation<UserControlC>("C");
+        }
+        //来添加或定义模块，告诉Prism框架应用程序中哪些模块可用
+        //protected override void ConfigureModuleCatalog(IModuleCatalog moduleCatalog)
+        //{
+        //    moduleCatalog.AddModule<ModuleAProfile>();
+        //    moduleCatalog.AddModule<ModuleBProfile>();
+        //    base.ConfigureModuleCatalog(moduleCatalog);
+        //}
+
+        protected override IModuleCatalog CreateModuleCatalog()
+        {
+            return new DirectoryModuleCatalog() { ModulePath = @".\Modules" };
+        }
+
+        /// <summary>
+        /// 设置启动页
+        /// </summary>
+        /// <returns></returns>
+        /// <exception cref="NotImplementedException"></exception>
+        protected override Window CreateShell()
+        {
+            //将MainWindow设置为启动页
+            return Container.Resolve<MainWindow>();
+            //throw new NotImplementedException();
+        }
+    }
+}
+```
+
+两种方式在性能上也有区别，第一种方式由于添加了项目引用，所以在项目启动时会将该模块所有部分都进行加载；第二种只有在需要显示ModuleA时才会去加载dll文件，最后补充项目目录：
+
+<img src="../TyporaImgs/image-20240513224816126.png" alt="image-20240513224816126" style="zoom:67%;" />
+
+## 5、导航
+
+如果想通过MainWindow传递的参数动态修改ModuleA页面显示内容
+
+1）添加ViewA的ViewModel的数据属性Msg
+
+```xml
+<UserControl x:Class="ModuleA.Views.ViewA" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:local="clr-namespace:ModuleA.Views" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             d:DesignHeight="450" d:DesignWidth="800"
+             mc:Ignorable="d">
+    <Grid>
+        <TextBlock FontSize="100" Text="{Binding Msg}" />
+    </Grid>
+</UserControl>
+```
+
+ViewAViewModel页面
+
+```C#
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using Prism.Mvvm;
+using Prism.Regions;
+
+namespace ModuleA.ViewModels
+{
+    public class ViewAViewModel:BindableBase,INavigationAware
+    {
+        //数据属性：绑定的内容
+        private string _msg;
+
+        public string Msg
+        {
+            get { return _msg; }
+            set {  SetProperty(ref _msg, value); }
+        }
+        //INavigationAware 接收参数
+        public void OnNavigatedTo(NavigationContext navigationContext)
+        {
+            if (navigationContext.Parameters.ContainsKey("MsgA"))
+                Msg = navigationContext.Parameters.GetValue<string>("MsgA");
+        }
+        //INavigationAware 是否重用实例
+        public bool IsNavigationTarget(NavigationContext navigationContext)
+        {
+            return true;
+        }
+        //INavigationAware 拦截
+        public void OnNavigatedFrom(NavigationContext navigationContext)
+        {
+         
+        }
+    }
+}
+```
+
+2）绑定View和ViewModel的关系
+
+之前都是通过在标签中增加如下代码让prism根据命名规范自动绑定View和ViewModel的关系
+
+```xml
+xmlns:prism="http://prismlibrary.com/"
+prism:ViewModelLocator.AutoWireViewModel="True"
+```
+
+现在在配置启动页处就可以直接配置`containerRegistry.RegisterForNavigation<ViewA,ViewAViewModel>();`
+
+```C#
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using ModuleA.ViewModels;
+using ModuleA.Views;
+using Prism.Ioc;
+using Prism.Modularity;
+
+namespace ModuleA
+{
+    public class ModuleAProfile : IModule
+    {
+        //依赖注入将ViewA的UserControl注册为导航页面
+        public void RegisterTypes(IContainerRegistry containerRegistry)
+        {
+            //指定视图对应的视图模型
+            containerRegistry.RegisterForNavigation<ViewA,ViewAViewModel>();
+        }
+
+        public void OnInitialized(IContainerProvider containerProvider)
+        {
+        }
+    }
+}
+
+```
+
+3）生成ModuleA代码，将dll文件更新，即可实现效果

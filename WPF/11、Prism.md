@@ -520,7 +520,7 @@ namespace PrismTest
 
 ## 5、导航
 
-如果想通过MainWindow传递的参数动态修改ModuleA页面显示内容
+通过MainWindow传递的参数动态修改ModuleA页面显示内容，在AB之间切换之前增加确认弹框，同时增加一个回退功能
 
 1）添加ViewA的ViewModel的数据属性Msg
 
@@ -536,7 +536,7 @@ namespace PrismTest
 </UserControl>
 ```
 
-ViewAViewModel页面
+2）修改ViewAViewModel页面
 
 ```C#
 using System;
@@ -544,14 +544,15 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Windows;
 using Prism.Mvvm;
 using Prism.Regions;
 
 namespace ModuleA.ViewModels
 {
-    public class ViewAViewModel:BindableBase,INavigationAware
+    public class ViewAViewModel:BindableBase,IConfirmNavigationRequest
     {
-        //数据属性：绑定的内容
+        //数据属性：增加绑定的内容
         private string _msg;
 
         public string Msg
@@ -559,27 +560,43 @@ namespace ModuleA.ViewModels
             get { return _msg; }
             set {  SetProperty(ref _msg, value); }
         }
-        //INavigationAware 接收参数
+        //INavigationAware的OnNavigatedTo 在导航目标之前调用，用于做准备工作
+        //如：导航参数、更新界面状态、加载数据
+        //此处接收MainWindow的MsgA参数
         public void OnNavigatedTo(NavigationContext navigationContext)
-        {
+        { 
+            //内部获取
+            //判断是否存在名为MsgA的导航参数，若存在则将参数值赋值给Msg字段
             if (navigationContext.Parameters.ContainsKey("MsgA"))
                 Msg = navigationContext.Parameters.GetValue<string>("MsgA");
         }
-        //INavigationAware 是否重用实例
+        //INavigationAware的IsNavigationTarget判断是否是有效的导航目标，是则返回true否则返回false
         public bool IsNavigationTarget(NavigationContext navigationContext)
         {
             return true;
         }
-        //INavigationAware 拦截
+        //INavigationAware的OnNavigatedFrom在导航离开当前页面或视图时调用，用于清理和处理操作
+        //如：保存页面状态、清理资源、取消订阅事件等
         public void OnNavigatedFrom(NavigationContext navigationContext)
         {
-         
+        }
+        //IConfirmNavigationRequest的ConfirmNavigationRequest方法在导航请求时确认是否允许导航。
+        public void ConfirmNavigationRequest(NavigationContext navigationContext, Action<bool> continuationCallback)
+        {
+            bool res = MessageBox.Show("确定切换吗？", "温馨提示", MessageBoxButton.YesNo) == MessageBoxResult.Yes;
+            //Invoke 方法用于执行委托所引用的方法，根据委托的签名和参数进行方法的调用
+            continuationCallback?.Invoke(res);
+            // 调用 continuationCallback(true) 表示允许导航
+    		// 调用 continuationCallback(false) 表示取消导航
         }
     }
 }
+
 ```
 
-2）绑定View和ViewModel的关系
+注意：IConfirmNavigationRequest继承了INavigationAware
+
+3）绑定View和ViewModel的关系
 
 之前都是通过在标签中增加如下代码让prism根据命名规范自动绑定View和ViewModel的关系
 
@@ -617,7 +634,126 @@ namespace ModuleA
         }
     }
 }
-
 ```
 
-3）生成ModuleA代码，将dll文件更新，即可实现效果
+4）MainWindow中增加一个回退按钮，绑定BackCommand命令
+
+```xml
+<Window x:Class="PrismTest.Views.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:local="clr-namespace:PrismTest.Views" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:prism="http://prismlibrary.com/" Title="MainWindow"
+        Width="800" Height="450"
+        prism:ViewModelLocator.AutoWireViewModel="True" mc:Ignorable="d">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="30" />
+            <RowDefinition />
+        </Grid.RowDefinitions>
+        <StackPanel Orientation="Horizontal">
+            <Button Width="80" Height="30"
+                    Command="{Binding ShowContentCommand}"
+                    CommandParameter="ViewA" Content="模块A" />
+            <Button Width="80" Height="30"
+                    Command="{Binding ShowContentCommand}"
+                    CommandParameter="ViewB" Content="模块B" />
+            <Button Width="80" Height="30"
+                    Command="{Binding BackCommand}"
+                    Content="后退" />
+        </StackPanel>
+        <ContentControl Grid.Row="1" prism:RegionManager.RegionName="xx" />
+        <!--<ContentControl Grid.Row="1" Content="{Binding ShowContent}" />-->
+    </Grid>
+</Window>
+```
+
+4）修改MainWindowViewModel，增加BackCommand回退命令，以及回退执行Back方法（回退需要知道导航上下文的导航日志，`private IRegionNavigationJournal? JournalInfo;`），修改原来的ShowContentMethod方法，在增加NavigationParameters
+
+```C#
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows.Controls;
+using Prism.Commands;
+using Prism.Mvvm;
+using Prism.Regions;
+using PrismTest.Views;
+
+namespace PrismTest.ViewModels
+{
+    public class MainWindowViewModel : BindableBase
+    {
+        // 注入区域管理
+        private readonly IRegionManager RegionManager;
+        //导航日志接口
+        private IRegionNavigationJournal? JournalInfo;
+        //命令属性:切换Control
+        public DelegateCommand<string> ShowContentCommand { get; set; }
+        //命令属性:后退
+        public DelegateCommand BackCommand { get; set; }
+
+
+        //构造函数中 绑定命令执行的操作
+        public MainWindowViewModel(IRegionManager _regionManager)
+        {
+            RegionManager = _regionManager;
+            this.ShowContentCommand = new DelegateCommand<string>(ShowContentMethod);
+            this.BackCommand = new DelegateCommand(Back);
+        }
+
+        /// <summary>
+		/// 数据属性 userControl
+		/// </summary>
+		private UserControl _ShowContent;
+
+        public UserControl ShowContent
+        {
+            get { return _ShowContent; }
+            set { SetProperty(ref _ShowContent, value); }
+        }
+
+        //切换Control时执行操作：将userControl赋值为对应的UserControl
+        private void ShowContentMethod(string viewName)
+        {
+            //增加导航参数
+            NavigationParameters paras = new NavigationParameters();
+            paras.Add("MsgA", "大家好，我是A");
+            //在xx区域发起导航请求
+            RegionManager.Regions["xx"].RequestNavigate(viewName, callback =>
+            {
+                //导航请求完成后执行：获取导航服务的导航日志
+                JournalInfo = callback.Context.NavigationService.Journal;
+            }, paras);
+            //RegionManager.RequestNavigate("ContentRegion", viewName);
+        }
+
+        //后退执行操作：
+        private void Back()
+        {
+            if (JournalInfo is { CanGoBack: true })
+                //if (JournalInfo != null && JournalInfo.CanGoBack)
+                JournalInfo.GoBack();
+        }
+    }
+}
+```
+
+当使用Prism框架开发WPF应用程序时，`IRegionNavigationJournal` 接口是Prism提供的一个用于导航日志（Navigation Journal）的接口。
+
+导航日志是一个记录应用程序中各个页面或视图导航历史的机制。`IRegionNavigationJournal` 接口定义了一组方法和属性，用于管理和操作导航历史。
+
+以下是 `IRegionNavigationJournal` 接口的一些重要成员：
+
+1. `CanGoBack` 属性：获取一个布尔值，表示是否可以返回到上一个导航目标。
+2. `CanGoForward` 属性：获取一个布尔值，表示是否可以前进到下一个导航目标。
+3. `GoBack` 方法：导航到上一个导航目标。
+4. `GoForward` 方法：导航到下一个导航目标。
+5. `Clear` 方法：清除导航历史。
+
+5）效果：
+
+![](../TyporaImgs/ParamAreaChangeABC.gif)
+
+## 6、对话服务

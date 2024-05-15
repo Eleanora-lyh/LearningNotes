@@ -8,12 +8,13 @@ NuGet\Install-Package Prism.DryIoc -Version 8.1.97
 
 Prism框架是一个功能强大的MVVM框架，它提供了许多功能来简化和加速WPF应用程序的开发。以下是Prism框架可以实现的一些主要功能：
 
-1. 模块化开发：Prism框架支持将应用程序拆分为多个独立的模块，每个模块可以独立开发、测试和部署。这种模块化的开发方式使得应用程序更易于维护和扩展。
-2. 导航管理：Prism框架提供了强大的导航管理功能，可以轻松地实现页面之间的导航和传递参数。它支持多种导航模式，包括区域导航、URL导航等。
-3. 事件聚合器：Prism框架提供了一个事件聚合器，用于解耦视图模型之间的通信。通过事件聚合器，一个视图模型可以发布事件，其他视图模型可以订阅这些事件，实现松耦合的通信。
+1. 模块化开发`IEventAggregator`：Prism框架支持将应用程序拆分为多个独立的模块，每个模块可以独立开发、测试和部署。这种模块化的开发方式使得应用程序更易于维护和扩展。
+2. 导航管理`IConfirmNavigationRequest`：Prism框架提供了强大的导航管理功能，可以轻松地实现页面之间的导航和传递参数。它支持多种导航模式，包括区域导航、URL导航等。
+3. 事件聚合器`IEventAggregator`：用于实现事件的发布与订阅机制。它提供了一种松散耦合的方式（一个视图模型可以发布事件，其他视图模型可以订阅这些事件），允许不同的组件之间进行通信，而不需要直接引用彼此。
 4. 依赖注入：Prism框架内置了一个轻量级的依赖注入容器，可以帮助你解决对象之间的依赖关系。通过依赖注入，可以更好地管理和组织应用程序中的对象，提高代码的可测试性和可扩展性。
 5. 异步编程支持：Prism框架提供了对异步编程的良好支持，可以方便地处理异步操作，如网络请求、数据库查询等。它使用了Task-based模型和异步命令模型，使得异步编程变得更加简单和可靠。
 6. 命令绑定：PrismApplication支持命令绑定的方式，可以将界面元素与应用程序逻辑进行绑定。这样可以实现用户操作与应用程序行为之间的解耦，提供更好的用户交互体验。
+7. 对话服务`IConfirmNavigationRequest`
 
 ## 2、创建WPF项目
 
@@ -958,3 +959,107 @@ public MainWindowViewModel(IRegionManager _regionManager, IDialogService _dialog
 弹窗关闭后在DialogService.ShowDialog的回调中也能获取到ViewCViewModel传递过来的参数
 
 ![image-20240515214855259](../TyporaImgs/image-20240515214855259.png)
+
+## 7、发布、订阅、取消订阅
+
+在MainWindow中设计3个按钮，点击一次订阅，在发布的时候就会弹出几个MessageBox，点击几次取消几次订阅
+
+1）首先在MainWindow中设计3个按钮，并且绑定click事件：
+
+```xml
+        <Button x:Name="IssueButton" Width="80"
+                Height="30" Click="IssueButton_OnClick"
+                Content="发布" />
+        <Button x:Name="SubButton" Width="80"
+                Height="30" Click="SubButton_OnClick"
+                Content="订阅" />
+        <Button x:Name="DisSubButton" Width="80"
+                Height="30" Click="DisSubButton_OnClick"
+                Content="取消订阅" />
+```
+
+2）被订阅的消息需要继承PubSubEvent类，泛型中填消息的类型
+
+```C#
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using Prism.Events;
+
+namespace PrismTest
+{
+    /// <summary>
+    /// 发布订阅事件类
+    /// </summary>
+    public class MsgEvent:PubSubEvent<string>//发布的内容是字符串
+    {
+    }
+}
+```
+
+3）MainWindow.cs中使用依赖注入事件耦合器 `IEventAggregator EventAggregator` ，分别用
+
+发布：`EventAggregator.GetEvent<MsgEvent>().Publish("发布的内容")`
+
+订阅：`EventAggregator.GetEvent<MsgEvent>().Subscribe(MySubEvent);`
+
+取消订阅：`EventAggregator.GetEvent<MsgEvent>().Unsubscribe(MySubEvent);`
+
+```C#
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Documents;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Shapes;
+using Prism.Events;
+
+namespace PrismTest.Views
+{
+    /// <summary>
+    /// MainWindow.xaml 的交互逻辑
+    /// </summary>
+    public partial class MainWindow : Window
+    {
+        private readonly IEventAggregator EventAggregator;
+        public MainWindow(IEventAggregator _eventAggregator)
+        {
+            EventAggregator  = _eventAggregator;
+            InitializeComponent();
+        }
+        //发布
+        private void IssueButton_OnClick(object sender, RoutedEventArgs e)
+        {
+            EventAggregator.GetEvent<MsgEvent>().Publish("按钮发布一个事件event1");
+        }
+        //订阅
+        private void SubButton_OnClick(object sender, RoutedEventArgs e)
+        {
+            EventAggregator.GetEvent<MsgEvent>().Subscribe(MySubEvent);
+        }
+        //订阅的事件
+        private void MySubEvent(string obj) //接收的订阅消息
+        {
+            MessageBox.Show("订阅消息：" + obj);
+        }
+        //取消订阅
+        private void DisSubButton_OnClick(object sender, RoutedEventArgs e) //接收的订阅消息
+        {
+            EventAggregator.GetEvent<MsgEvent>().Unsubscribe(MySubEvent);
+        }
+    }
+
+```
+
+4）效果：
+
+![](../TyporaImgs/SubPubTest.gif)

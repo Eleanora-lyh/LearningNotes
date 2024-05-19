@@ -158,3 +158,8 @@ https://juejin.cn/post/7227012644508205114
 
 https://www.cnblogs.com/dino623/p/XAML_Styler.html
 
+## 4、快捷键
+
+xmal中在当前行开始另起一行换行 alt+shift+enter
+
+C#中在当前行开始另起一行换行 shift+enter

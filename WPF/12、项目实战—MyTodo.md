@@ -311,9 +311,9 @@ namespace MyTodo.Views
 
 ## 3、设置左侧菜单的弹出
 
-将MainWindow删除，在Views文件夹下新建MainView，将代码迁移过去
+1）将MainWindow删除，在Views文件夹下新建MainView，将代码迁移过去
 
-在主页面中设计左侧抽屉的样式
+2）在主页面中设计左侧抽屉的样式
 
 ```xml
  <!--  左侧的抽屉  -->
@@ -321,6 +321,8 @@ namespace MyTodo.Views
                 <DockPanel MinWidth="220" />
             </materialDesign:DrawerHost.LeftDrawerContent>
 ```
+
+改为
 
 ```xml
     <!--  左侧的抽屉  -->
@@ -356,7 +358,9 @@ namespace MyTodo.Views
 </materialDesign:DrawerHost.LeftDrawerContent>
 ```
 
-在App.xaml中添加ListBoxItem的样式
+注意要将文件夹下的图片属性改为资源
+
+3）在App.xaml中添加ListBoxItem的样式，使得点击的时候左侧显示高亮条，同时背景色也变化
 
 ```xml
   <!--  设置ListBoxItem的样式  -->
@@ -391,7 +395,7 @@ namespace MyTodo.Views
   </Style>
 ```
 
-新建一个类MenuBar存储列表项
+4）新建一个类MenuBar作为数据源格式来存储列表项，新建一个Common文件夹，在其中新建一个Models文件夹，新建MenuBar类
 
 ```C#
 using System;
@@ -442,7 +446,7 @@ namespace MyTodo.Common.Models
 }
 ```
 
-MainViewModel
+5）绑定的MainView的ViewModel即MainViewModel
 
 ```C#
 using System;
@@ -456,32 +460,274 @@ using Prism.Mvvm;
 
 namespace MyTodo.ViewModels
 {
-    public class MainViewModel:BindableBase
+    public class MainViewModel : BindableBase
     {
+        //构造函数中初始化列表
         public MainViewModel()
         {
             MenuBars = new ObservableCollection<MenuBar>();
             CreateMenuBar();
         }
+        //数据属性：ListBox的数据源
         private ObservableCollection<MenuBar> menuBars;
 
         public ObservableCollection<MenuBar> MenuBars
         {
             get { return menuBars; }
-            set { menuBars = value; RaisePropertyChanged();}
+            set { menuBars = value; RaisePropertyChanged(); }
         }
-
+        //初始化数据的方法
         void CreateMenuBar()
         {
-            MenuBars.Add(new MenuBar(){Icon = "Home", Title = "首页",NameSpace = "IndexView"});
-            MenuBars.Add(new MenuBar(){Icon = "NotebookOutline", Title = "待办事项",NameSpace = "TodoView" });
-            MenuBars.Add(new MenuBar(){Icon = "NotebookPlus", Title = "备忘录",NameSpace = "MeloView" });
-            MenuBars.Add(new MenuBar(){Icon = "Cog", Title = "设置",NameSpace = "SettingsView" });
+            MenuBars.Add(new MenuBar() { Icon = "Home", Title = "首页", NameSpace = "IndexView" });
+            MenuBars.Add(new MenuBar() { Icon = "NotebookOutline", Title = "待办事项", NameSpace = "TodoView" });
+            MenuBars.Add(new MenuBar() { Icon = "NotebookPlus", Title = "备忘录", NameSpace = "MemoView" });
+            MenuBars.Add(new MenuBar() { Icon = "Cog", Title = "设置", NameSpace = "SettingsView" });
         }
     }
 }
 ```
 
+- `ObservableCollection` 是 `List` 的一个特殊化版本，实现了 `INotifyCollectionChanged` 接口。这意味着 `ObservableCollection` 可以在集合发生变化时自动通知绑定到它的界面元素进行更新。当集合中的元素发生添加、删除或重新排序时，界面会自动更新以反映这些变化。
+
 效果：
 
 ![](../TyporaImgs/DrawList.gif)
+
+## 4、左侧抽屉列表绑定页面的导航
+
+现在实现左侧抽屉切换导航时，主窗口页面的切换
+
+
+
+1）搞四个UserControl（IndexView、TodoView、MemoView、SettingsView）放到Views文件夹下，作为之前初始化菜单绑定的NameSpace
+
+```C#
+void CreateMenuBar()
+{
+    MenuBars.Add(new MenuBar() { Icon = "Home", Title = "首页", NameSpace = "IndexView" });
+    MenuBars.Add(new MenuBar() { Icon = "NotebookOutline", Title = "待办事项", NameSpace = "TodoView" });
+    MenuBars.Add(new MenuBar() { Icon = "NotebookPlus", Title = "备忘录", NameSpace = "MemoView" });
+    MenuBars.Add(new MenuBar() { Icon = "Cog", Title = "设置", NameSpace = "SettingsView" });
+}
+```
+
+以IndexView为例，添加一个TextBlock方便区分这个四个页面
+
+```xml
+<UserControl x:Class="MyTodo.Views.IndexView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:local="clr-namespace:MyTodo.Views" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             d:DesignHeight="450" d:DesignWidth="800"
+             mc:Ignorable="d">
+    <Grid>
+        <TextBlock FontSize="100" Text="       IndexView" />
+
+    </Grid>
+</UserControl>
+```
+
+2）同理，在ViewModels文件夹下，添加四个ViewModel（IndexViewModel、TodoViewModel、MemoViewModel、SettingsViewModel）
+
+3）app.xaml.cs中的依赖注入中，将这四个页面都注册为导航页面
+
+```C#
+using System.Configuration;
+using System.Data;
+using System.Windows;
+using MyTodo.ViewModels;
+using MyTodo.Views;
+using Prism.DryIoc;
+using Prism.Ioc;
+
+namespace MyTodo
+{
+    /// <summary>
+    /// Interaction logic for App.xaml
+    /// </summary>
+    public partial class App : PrismApplication
+    {
+        protected override void RegisterTypes(IContainerRegistry containerRegistry)
+        {
+            //注册导航目录
+            containerRegistry.RegisterForNavigation<IndexView,IndexViewModel>();
+            containerRegistry.RegisterForNavigation<MemoView, MemoViewModel>();
+            containerRegistry.RegisterForNavigation<SettingsView, SettingsViewModel>();
+            containerRegistry.RegisterForNavigation<TodoView, TodoViewModel>();
+        }
+
+        protected override Window CreateShell()
+        {
+            return Container.Resolve<MainView>();
+        }
+    }
+}
+```
+
+4）在MainViewModel中增加3个命令属性
+
+- NavigateCommand 驱动导航（绑定参数为MenuBar的NavigateAction方法）
+- GoBackCommand 后退（构造函数中使用匿名方法）
+- GoForwardCommand 前进（构造函数中使用匿名方法）
+
+NavigateCommand 中需要 使用IRegionManager 找到导航的目标区域，所以这里要在构造函数中增加_regionManager的依赖注入。
+
+前进后退需要NavigateJournal记录导航日志，所以在每次导航成功，都需要重新更新NavigateJournal
+
+```C#
+using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using MyTodo.Common.Models;
+using MyTodo.Extensions;
+using Prism.Commands;
+using Prism.Mvvm;
+using Prism.Regions;
+
+namespace MyTodo.ViewModels
+{
+    public class MainViewModel : BindableBase
+    {
+        //依赖注入_regionManager
+        private readonly IRegionManager _regionManager;
+
+        //构造函数中初始化列表
+        public MainViewModel(IRegionManager regionManager)
+        {
+            //依赖注入_regionManager
+            _regionManager = regionManager;
+            //初始化左侧抽屉菜单
+            MenuBars = new ObservableCollection<MenuBar>();
+            InitialMenuBar();
+            //绑定前进后退命令执行的方法
+            NavigateCommand = new DelegateCommand<MenuBar>(NavigateAction);
+            //绑定前进后退命令执行的方法/操作
+            GoBackCommand = new DelegateCommand(() =>
+            {
+                if (NavigateJournal != null && NavigateJournal.CanGoBack) NavigateJournal.GoBack();
+            });
+            GoForwardCommand = new DelegateCommand(() =>
+            {
+                if (NavigateJournal != null && NavigateJournal.CanGoForward) NavigateJournal.GoForward();
+            });
+        }
+
+
+        //命令属性：驱动导航
+        public DelegateCommand<MenuBar> NavigateCommand { get; set; }
+        //命令属性：后退
+        public DelegateCommand GoBackCommand { get; set; }
+        //命令属性：前进
+        public DelegateCommand GoForwardCommand { get; set; }
+        //数据属性：ListBox的数据源
+        private ObservableCollection<MenuBar> menuBars;
+        // 普通成员变量
+        private IRegionNavigationJournal NavigateJournal;
+
+        public ObservableCollection<MenuBar> MenuBars
+        {
+            get { return menuBars; }
+            set { menuBars = value; RaisePropertyChanged(); }
+        }
+        //初始化数据的方法
+        void InitialMenuBar()
+        {
+            MenuBars.Add(new MenuBar() { Icon = "Home", Title = "首页", NameSpace = "IndexView" });
+            MenuBars.Add(new MenuBar() { Icon = "NotebookOutline", Title = "待办事项", NameSpace = "TodoView" });
+            MenuBars.Add(new MenuBar() { Icon = "NotebookPlus", Title = "备忘录", NameSpace = "MemoView" });
+            MenuBars.Add(new MenuBar() { Icon = "Cog", Title = "设置", NameSpace = "SettingsView" });
+        }
+        //导航命令执行的具体操作
+        private void NavigateAction(MenuBar obj)
+        {
+            if (obj == null || string.IsNullOrWhiteSpace(obj.NameSpace))
+                return;
+            _regionManager.Regions[PrismManager.MainViewRegionName].RequestNavigate(obj.NameSpace, back =>
+            {
+                NavigateJournal = back.Context.NavigationService.Journal;
+            });
+
+        }
+    }
+}
+```
+
+5）将命令属性绑定到页面
+
+```xml
+<!--  回退  -->
+<Button [...]
+        Command="{Binding GoBackCommand}"
+        [...]/>
+<!--  前进  -->
+<Button [...]
+        Command="{Binding GoForwardCommand}"
+        [...]/>
+<!--  菜单列表  -->
+<ListBox x:Name="menuBar"
+         ItemContainerStyle="{StaticResource MyListBoxItemStyle}"
+         ItemsSource="{Binding MenuBars}">
+    <!--设置触发-->
+    <i:Interaction.Triggers>
+        <i:EventTrigger EventName="SelectionChanged">
+            <!--将menuBar作为参数，传给NavigateCommand命令-->
+            <i:InvokeCommandAction Command="{Binding NavigateCommand}" CommandParameter="{Binding ElementName=menuBar, Path=SelectedItem}" />
+        </i:EventTrigger>
+    </i:Interaction.Triggers>
+  	...
+</ListBox>
+```
+
+6）当列表选中项变化时，关闭左侧抽屉。`x:Name="drawerHost"`
+
+```xml
+<materialDesign:DrawerHost x:Name="drawerHost" IsLeftDrawerOpen="{Binding ElementName=MenuToggleButton, Path=IsChecked}">
+    <materialDesign:DrawerHost.LeftDrawerContent>
+```
+
+在MainView.cs中绑定触发事件
+
+```C#
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Documents;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Shapes;
+
+namespace MyTodo.Views
+{
+    /// <summary>
+    /// MainView.xaml 的交互逻辑
+    /// </summary>
+    public partial class MainView : Window
+    {
+        public MainView()
+        {
+            InitializeComponent();
+            ...
+            //鼠标点击切换左侧抽屉导航时，关闭抽屉
+            menuBar.SelectionChanged += (s, e) =>
+            {
+                drawerHost.IsLeftDrawerOpen = false;
+            };
+        }
+        
+    }
+}
+
+```
+
+7）效果：
+
+![](../TyporaImgs/DrawListChange.gif)

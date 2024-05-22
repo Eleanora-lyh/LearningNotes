@@ -731,3 +731,666 @@ namespace MyTodo.Views
 7）效果：
 
 ![](../TyporaImgs/DrawListChange.gif)
+
+## 5、IndexView首页布局设计
+
+1）分析下图效果图的布局，可以大致分为第0行的文字列、第1行快捷目录、第2行的卡片列表
+
+![image-20240521222544337](../TyporaImgs/image-20240521222544337.png)
+
+```xml
+<UserControl x:Class="MyTodo.Views.IndexView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:local="clr-namespace:MyTodo.Views" xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" d:DesignHeight="450"
+             d:DesignWidth="800" mc:Ignorable="d">
+    <Grid>
+        <!--  初始化布局为三行  -->
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition />
+        </Grid.RowDefinitions>
+        <!--  第0行的文字行  -->
+        <TextBlock Margin="15,10" FontSize="22"
+                   Text="你好，今天是2024.5.21 星期二" />
+       <!--  第1行的文字行  -->
+       <!--  第2行的文字行  -->
+    </Grid>
+</UserControl>
+```
+
+2）第1行是四个结构类似的部分，所以将这个部分单独拿出来分析，将卡片的内容抽象为类`TaskBar`，属性包括图标、标题、数字、背景色、点击后跳转的目标导航，如下：
+
+```C#
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MyTodo.Common.Models
+{
+    /// <summary>
+    /// 任务栏
+    /// </summary>
+    public class TaskBar
+    {
+        private string icon;
+        private string title;
+        private string content;
+        private string color;
+        private string target;
+        /// <summary>
+        /// 图标
+        /// </summary>
+        public string Icon
+        {
+            get { return icon; }
+            set { icon = value; }
+        }
+        /// <summary>
+        /// 标题
+        /// </summary>
+        public string Title
+        {
+            get { return title; }
+            set { title = value; }
+        }
+        /// <summary>
+        /// 内容
+        /// </summary>
+        public string Content
+        {
+            get { return content; }
+            set { content = value; }
+        }
+        /// <summary>
+        /// 颜色
+        /// </summary>
+        public string Color
+        {
+            get { return color; }
+            set { color = value; }
+        }
+        /// <summary>
+        /// 触发目标
+        /// </summary>
+        public string Target
+        {
+            get { return target; }
+            set { target = value; }
+        }
+    }
+}
+```
+
+3）在IndexViewModel中初始化此处显示的集合对象
+
+```C#
+using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using MyTodo.Common.Models;
+using Prism.Mvvm;
+
+namespace MyTodo.ViewModels
+{
+    public class IndexViewModel : BindableBase
+    {
+        public IndexViewModel()
+        {
+            //初始化构造函数时，初始化数据属性taskBars
+            TaskBars = new ObservableCollection<TaskBar>();  
+            InitialTaskBars();
+        }
+        //新增数据属性taskBars
+        private ObservableCollection<TaskBar> taskBars;
+
+        public ObservableCollection<TaskBar> TaskBars
+        {
+            get { return taskBars; }
+            set { taskBars = value; RaisePropertyChanged();}
+        }
+		//初始化快捷卡片
+        void InitialTaskBars()
+        {
+            TaskBars.Add(new TaskBar(){Icon = "ClockFast",Title = "汇总",Content = "9",Color= "#FF0CA0FF",Target = ""});
+            TaskBars.Add(new TaskBar(){Icon = "ClockCheckOutline",Title = "已完成",Content = "9", Color = "#FF1ECA3A", Target = ""});
+            TaskBars.Add(new TaskBar(){Icon = "ChartLineVariant",Title = "完成比例",Content = "100%", Color = "#FF02C6DC", Target = ""});
+            TaskBars.Add(new TaskBar(){Icon = "PlaylistStar",Title = "备忘录",Content = "19", Color = "#FFFFA000", Target = ""});
+        }
+    }
+}
+
+```
+
+4）设计具体的xaml页面，四个相同的Item，可以使用自定义集合控件ItemsControl实现
+
+`ItemsControl` 是一个在 WPF 和 UWP 中常用的控件，它用于显示一个集合中的项。`ItemsControl` 是一个抽象类，它提供了用于呈现和布局项的基本功能，但本身不能直接实例化。
+
+`ItemsControl` 提供了以下主要属性和功能：
+
+1. `ItemsSource`：用于设置 `ItemsControl` 的数据源，可以是实现了 `IEnumerable` 接口的集合对象，如 `List`、`ObservableCollection` 等。
+2. `ItemTemplate`：用于定义每个项如何显示的数据模板。可以使用 `DataTemplate` 类来创建自定义的项模板。
+3. `ItemContainerStyle`：用于设置每个项的样式。
+4. `ItemContainerStyleSelector`：用于根据项的属性选择不同的样式。
+5. `ItemsPanel`：用于定义项的布局面板。可以使用 `ItemsPanelTemplate` 类来创建自定义的布局面板，如 `StackPanel`、`Grid` 等。
+6. `ItemsPanelTemplate`：用于创建自定义的布局面板模板。
+7. `ItemStringFormat`：用于指定项的字符串格式化方式。
+
+每个卡片用Border设置背景色
+
+```xml
+<!--  第0行的文字行，四列卡片的快捷跳转  -->
+<ItemsControl Grid.Row="1" ItemsSource="{Binding TaskBars}">
+    <!--  集合中有四列  -->
+    <ItemsControl.ItemsPanel>
+        <ItemsPanelTemplate>
+            <UniformGrid Columns="4" />
+        </ItemsPanelTemplate>
+    </ItemsControl.ItemsPanel>
+    <!--  设计数据样式  -->
+    <ItemsControl.ItemTemplate>
+        <DataTemplate>
+            <Border Margin="10"
+                    Background="{Binding Color}"
+                    CornerRadius="5">
+                <!--设置鼠标悬浮的样式-->
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Style.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Effect">
+                                    <Setter.Value>
+                                        <DropShadowEffect BlurRadius="10" 
+                                                          ShadowDepth="1"
+                                                          Color="#DDDDDD" />
+                                    </Setter.Value>
+                                </Setter>
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <!--  Border的Content只能放一个，所以套一层Grid  -->
+                <Grid>
+                    <!--  每个卡片构成  -->
+                    <StackPanel Margin="20,10">
+                        <materialDesign:PackIcon Width="30" Height="30"
+                                                 Kind="{Binding Icon}" />
+                        <TextBlock Margin="0,15" FontSize="15"
+                                   Text="{Binding Title}" />
+                        <TextBlock FontSize="40" FontWeight="Bold"
+                                   Text="{Binding Content}" />
+                    </StackPanel>
+                    <!--  画出卡片右下角的水印圈圈  -->
+                    <Canvas ClipToBounds="True">
+                        <Border Canvas.Top="10" Canvas.Right="-50"
+                                Width="120" Height="120"
+                                Background="#ffffff" CornerRadius="100"
+                                Opacity="0.15" />
+                        <Border Canvas.Top="80" Canvas.Right="-30"
+                                Width="120" Height="120"
+                                Background="#ffffff" CornerRadius="100"
+                                Opacity="0.15" />
+                    </Canvas>
+                </Grid>
+            </Border>
+        </DataTemplate>
+    </ItemsControl.ItemTemplate>
+</ItemsControl>
+```
+
+5）第2行是两个大卡片，设计完第一个copy出第二个
+
+```xml
+<Grid Grid.Row="2" Margin="0,10">
+    <Grid.ColumnDefinitions>
+        <ColumnDefinition />
+        <ColumnDefinition />
+    </Grid.ColumnDefinitions>
+    <Border Margin="10,0" Background="#BEBEBE"
+            CornerRadius="5" Opacity="0.1" />
+    <DockPanel Margin="10,0">
+        <!--  第一行的卡片标题和按钮  -->
+        <DockPanel Margin="10,5" DockPanel.Dock="Top"
+                   LastChildFill="False">
+            <TextBlock FontSize="20" FontWeight="Bold"
+                       Text="待办事项" />
+            <Button Width="30" Height="30"
+                    VerticalAlignment="Top" DockPanel.Dock="Right"
+                    Style="{StaticResource MaterialDesignFloatingActionButton}">
+                <materialDesign:PackIcon Kind="Add" />
+            </Button>
+        </DockPanel>
+        <!--  卡片列表  -->
+        <ListBox />
+    </DockPanel>
+    <Border Grid.Column="1" Margin="10,0"
+            Background="#BEBEBE" CornerRadius="5"
+            Opacity="0.1" />
+    <DockPanel Grid.Column="1" Margin="10,0">
+        <!--  第一行的卡片标题和按钮  -->
+        <DockPanel Margin="10,5" DockPanel.Dock="Top"
+                   LastChildFill="False">
+            <TextBlock FontSize="20" FontWeight="Bold"
+                       Text="待办事项" />
+            <Button Width="30" Height="30"
+                    VerticalAlignment="Top" DockPanel.Dock="Right"
+                    Style="{StaticResource MaterialDesignFloatingActionButton}">
+                <materialDesign:PackIcon Kind="Add" />
+            </Button>
+        </DockPanel>
+        <!--  卡片列表  -->
+        <ListBox />
+    </DockPanel>
+</Grid>
+```
+
+## 6、IndexView首页下方待办事项、备忘录卡片内部设计
+
+上面已经实现了待办事项卡片的第一行，由TextBlock+Icon组成
+
+剩下的就是一个ListBox，并重写设计ListBoxItem的Datatemplate，图片可只左边为两行字，右边为一个ToggleButton，左右布局使用DockPanel。最晚层就是DockPanel，左边部分又是一个Stackpanel，其中每一个项由一个类对象组成。
+
+![](../TyporaImgs/image-20240522211311423.png)
+
+1）xaml代码如下：
+
+```xml
+<!--  卡片列表  -->
+<ListBox ItemsSource="{Binding TodoList}" ScrollViewer.VerticalScrollBarVisibility="Hidden"
+         HorizontalContentAlignment="Stretch">
+    <!--重新设计ListBoxItem的显示模版-->
+    <ListBox.ItemTemplate>
+        <DataTemplate>
+            <!--左右布局，左边对象，右边按钮-->
+            <DockPanel MaxHeight="80" LastChildFill="False">
+                <ToggleButton DockPanel.Dock="Right"></ToggleButton>
+                <StackPanel >
+                    <TextBlock FontSize="16" FontWeight="Bold"
+                               Text="{Binding Title}" />
+                    <TextBlock Margin="0,5" Opacity="0.5"
+                               Text="{Binding Content}" />
+                </StackPanel>
+            </DockPanel>
+        </DataTemplate>
+    </ListBox.ItemTemplate>
+</ListBox>
+```
+
+2）现在设计左边类对象
+
+BaseDto作为临时数据的基类
+
+```C#
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MyTodo.Common.Models
+{
+    public class BaseDto
+    {
+        private int id;
+        public int Id
+        {
+            get { return id; }
+            set { id = value; }
+        }
+        private DateTime createTime;
+
+        public DateTime CreateTime
+        {
+            get { return createTime; }
+            set { createTime = value; }
+        }
+        private DateTime updateTime;
+
+        public DateTime UpdateTime
+        {
+            get { return updateTime; }
+            set { updateTime = value; }
+        }
+    }
+}
+```
+
+待办事项TodoDto、备忘录MemoDto继承BaseDto
+
+```C#
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MyTodo.Common.Models
+{
+	/// <summary>
+	/// 待办实体
+	/// </summary>
+    public class TodoDto: BaseDto
+    {
+        private string title; 
+        private string content;
+        private int status;
+		/// <summary>
+		/// 标题
+		/// </summary>
+		public string Title
+		{
+			get { return title; }
+			set { title = value; }
+		}
+        /// <summary>
+		/// 内容
+		/// </summary>
+		public string Content
+		{
+			get { return content; }
+			set { content = value; }
+		}
+		/// <summary>
+		/// 当前状态
+		/// </summary>
+		public int Status
+		{
+			get { return status; }
+			set { status = value; }
+		}
+	}
+    /// <summary>
+    /// 备忘录
+    /// </summary>
+    public class MemoDto : BaseDto
+    {
+        private string title;
+        private string content;
+        private int status;
+        /// <summary>
+        /// 标题
+        /// </summary>
+        public string Title
+        {
+            get { return title; }
+            set { title = value; }
+        }
+        /// <summary>
+        /// 内容
+        /// </summary>
+        public string Content
+        {
+            get { return content; }
+            set { content = value; }
+        }
+        /// <summary>
+        /// 当前状态
+        /// </summary>
+        public int Status
+        {
+            get { return status; }
+            set { status = value; }
+        }
+    }
+}
+```
+
+3）在IndexViewModel中初始化测试用数据，并在构造函数中调用初始化方法
+
+```C#
+using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using MyTodo.Common.Models;
+using Prism.Mvvm;
+
+namespace MyTodo.ViewModels
+{
+    public class IndexViewModel : BindableBase
+    {
+        public IndexViewModel()
+        {
+            TaskBars = new ObservableCollection<TaskBar>();
+            InitialTaskBars();
+            InitialTestData();
+        }
+        private ObservableCollection<TaskBar> taskBars;
+
+        public ObservableCollection<TaskBar> TaskBars
+        {
+            get { return taskBars; }
+            set { taskBars = value; RaisePropertyChanged(); }
+        }
+
+        void InitialTaskBars()
+        {
+            TaskBars.Add(new TaskBar() { Icon = "ClockFast", Title = "汇总", Content = "9", Color = "#FF0CA0FF", Target = "" });
+            TaskBars.Add(new TaskBar() { Icon = "ClockCheckOutline", Title = "已完成", Content = "9", Color = "#FF1ECA3A", Target = "" });
+            TaskBars.Add(new TaskBar() { Icon = "ChartLineVariant", Title = "完成比例", Content = "100%", Color = "#FF02C6DC", Target = "" });
+            TaskBars.Add(new TaskBar() { Icon = "PlaylistStar", Title = "备忘录", Content = "19", Color = "#FFFFA000", Target = "" });
+        }
+
+        private ObservableCollection<TodoDto> todoList;
+
+        public ObservableCollection<TodoDto> TodoList
+        {
+            get { return todoList; }
+            set
+            {
+                todoList = value;
+                RaisePropertyChanged();
+            }
+        }
+
+        private ObservableCollection<MemoDto> memoList;
+
+        public ObservableCollection<MemoDto> MemoList
+        {
+            get { return memoList; }
+            set
+            {
+                memoList = value;
+                RaisePropertyChanged();
+            }
+        }
+
+        void InitialTestData()
+        {
+            TodoList = new ObservableCollection<TodoDto>();
+            MemoList = new ObservableCollection<MemoDto>();
+            for (int i = 0; i < 10; i++)
+            {
+                var todo = new TodoDto()
+                {
+                    Id = i,
+                    CreateTime = DateTime.Now,
+                    Content = "正在处理中",
+                    Title = "待办"+i,
+                    Status = 1,
+                    UpdateTime = DateTime.Now
+                };
+                var memo = new MemoDto()
+                {
+                    Id = i,
+                    CreateTime = DateTime.Now,
+                    Content = "我的密码",
+                    Title = "待办" + i,
+                    Status = 1,
+                    UpdateTime = DateTime.Now
+                };
+                todoList.Add(todo);
+                MemoList.Add(memo);
+            }
+        } 
+    }
+}
+```
+
+4）在app.xaml的ResourceDictionary中设置全局的Textblock显示的字体
+
+```xml
+ <!--  设置全局的字体  -->
+ <Style TargetType="TextBlock">
+     <Setter Property="FontFamily" Value="微软雅黑" />
+     <!--  可以添加其他字体属性  -->
+ </Style>
+```
+
+5）绑定数据属性到ListBox中，目前IndexView的所有xaml代码如下：
+
+```xml
+<UserControl x:Class="MyTodo.Views.IndexView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:local="clr-namespace:MyTodo.Views" xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" d:DesignHeight="450"
+             d:DesignWidth="800" mc:Ignorable="d">
+    <Grid>
+        <!--  初始化布局为三行  -->
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition />
+        </Grid.RowDefinitions>
+        <!--  第0行的文字行  -->
+        <TextBlock Margin="15,10" FontSize="22"
+                   Text="你好，今天是2024.5.21 星期二" />
+        <!--  第0行的文字行，四列卡片的快捷跳转  -->
+        <ItemsControl Grid.Row="1" ItemsSource="{Binding TaskBars}">
+            <!--  集合中有四列  -->
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <UniformGrid Columns="4" />
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <!--  设计数据样式  -->
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <Border Margin="10"
+                            Background="{Binding Color}"
+                            CornerRadius="5">
+                        <!--设置鼠标悬浮的样式-->
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Style.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Effect">
+                                            <Setter.Value>
+                                                <DropShadowEffect BlurRadius="10" ShadowDepth="1"
+                                                                  Color="#DDDDDD" />
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <!--  Border的Content只能放一个，所以套一层Grid  -->
+                        <Grid>
+                            <!--  每个卡片构成  -->
+                            <StackPanel Margin="20,10">
+                                <materialDesign:PackIcon Width="30" Height="30"
+                                                         Kind="{Binding Icon}" />
+                                <TextBlock Margin="0,15" FontSize="15"
+                                           Text="{Binding Title}" />
+                                <TextBlock FontSize="40" FontWeight="Bold"
+                                           Text="{Binding Content}" />
+                            </StackPanel>
+                            <!--  画出卡片右下角的水印圈圈  -->
+                            <Canvas ClipToBounds="True">
+                                <Border Canvas.Top="10" Canvas.Right="-50"
+                                        Width="120" Height="120"
+                                        Background="#ffffff" CornerRadius="100"
+                                        Opacity="0.15" />
+                                <Border Canvas.Top="80" Canvas.Right="-30"
+                                        Width="120" Height="120"
+                                        Background="#ffffff" CornerRadius="100"
+                                        Opacity="0.15" />
+                            </Canvas>
+                        </Grid>
+                    </Border>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <Grid Grid.Row="2" Margin="0,10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition />
+                <ColumnDefinition />
+            </Grid.ColumnDefinitions>
+            <Border Margin="10,0" Background="#BEBEBE"
+                    CornerRadius="5" Opacity="0.1" />
+            <DockPanel Margin="10,0">
+                <!--  第一行的卡片标题和按钮  -->
+                <DockPanel Margin="10,5" DockPanel.Dock="Top"
+                           LastChildFill="False">
+                    <TextBlock FontSize="20" FontWeight="Bold"
+                               Text="待办事项" />
+                    <Button Width="30" Height="30"
+                            VerticalAlignment="Top" DockPanel.Dock="Right"
+                            Style="{StaticResource MaterialDesignFloatingActionButton}">
+                        <materialDesign:PackIcon Kind="Add" />
+                    </Button>
+                </DockPanel>
+                <!--  卡片列表  -->
+                <ListBox ItemsSource="{Binding TodoList}" ScrollViewer.VerticalScrollBarVisibility="Hidden"
+                         HorizontalContentAlignment="Stretch">
+                    <!--重新设计ListBoxItem的显示模版-->
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <!--左右布局，左边对象，右边按钮-->
+                            <DockPanel MaxHeight="80" LastChildFill="False">
+                                <ToggleButton DockPanel.Dock="Right"></ToggleButton>
+                                <StackPanel >
+                                    <TextBlock FontSize="16" FontWeight="Bold"
+                                               Text="{Binding Title}" />
+                                    <TextBlock Margin="0,5" Opacity="0.5"
+                                               Text="{Binding Content}" />
+                                </StackPanel>
+                            </DockPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </DockPanel>
+            <Border Grid.Column="1" Margin="10,0"
+                    Background="#BEBEBE" CornerRadius="5"
+                    Opacity="0.1" />
+            <DockPanel Grid.Column="1" Margin="10,0">
+                <!--  第一行的卡片标题和按钮  -->
+                <DockPanel Margin="10,5" DockPanel.Dock="Top"
+                           LastChildFill="False">
+                    <TextBlock FontSize="20" FontWeight="Bold"
+                               Text="备忘录" />
+                    <Button Width="30" Height="30"
+                            VerticalAlignment="Top" DockPanel.Dock="Right"
+                            Style="{StaticResource MaterialDesignFloatingActionButton}">
+                        <materialDesign:PackIcon Kind="Add" />
+                    </Button>
+                </DockPanel>
+                <!--  卡片列表  -->
+                <ListBox ItemsSource="{Binding MemoList}" ScrollViewer.VerticalScrollBarVisibility="Hidden">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel MaxHeight="80">
+                                <TextBlock FontSize="16" FontWeight="Bold"
+                                           Text="{Binding Title}" />
+                                <TextBlock Margin="0,5" Opacity="0.5"
+                                           Text="{Binding Content}" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </DockPanel>
+        </Grid>
+    </Grid>
+</UserControl>
+```
+
+## 7、TodoView

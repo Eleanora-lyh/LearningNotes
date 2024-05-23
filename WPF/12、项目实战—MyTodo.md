@@ -1393,4 +1393,331 @@ namespace MyTodo.ViewModels
 </UserControl>
 ```
 
-## 7、TodoView
+## 7、TodoView页面设计
+
+![image-20240523222123781](../TyporaImgs/image-20240523222123781.png)
+
+1）简单分析下TodoView的主页面：
+
+第一行：搜索框、筛选框、新增按钮
+
+第二行：一个水平放5个（自动换行）的卡片列表
+
+右侧：弹框【添加待办标题、三个输入项：状态、待办概要、待办内容】
+
+主页面的布局可以使用Grid来设计，卡片列表用自定义的ItemControl来设计
+
+2）第一行搜索框、筛选框、新增按钮
+
+```xml
+<Grid>
+    <!--  新建两行  -->
+    <Grid.RowDefinitions>
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
+    <!--  第一行  -->
+    <StackPanel Margin="15,0,0,0" Orientation="Horizontal">
+        <TextBox Width="250" VerticalContentAlignment="Center"
+                 md:HintAssist.Hint="查找待办事项..." md:TextFieldAssist.HasClearButton="True" />
+        <TextBlock Margin="10,0" VerticalAlignment="Center"
+                   Text="筛选：" />
+        <ComboBox SelectedIndex="0">
+            <ComboBoxItem>全部</ComboBoxItem>
+            <ComboBoxItem>待办</ComboBoxItem>
+            <ComboBoxItem>已完成</ComboBoxItem>
+        </ComboBox>
+    </StackPanel>
+    <!--  +添加待办  -->
+    <Button Grid.Row="0" Margin="10,5"
+            HorizontalAlignment="Right"
+            Command="{Binding TodoAddCommand}"
+            Content="+ 添加待办" />
+
+</Grid>
+```
+
+3）第二行自定义ItemControl，在Grid内部增加
+
+```xml
+ <!--  第二行  -->
+<ItemsControl Grid.Row="1" HorizontalAlignment="Center"
+              ItemsSource="{Binding TodoList}">
+    <!--  创建自定义的布局面板模板  -->
+    <ItemsControl.ItemsPanel>
+        <ItemsPanelTemplate>
+            <!--  自动换行面板  -->
+            <WrapPanel />
+        </ItemsPanelTemplate>
+    </ItemsControl.ItemsPanel>
+    <!--  定义每个项如何显示的数据模板  -->
+    <ItemsControl.ItemTemplate>
+        <DataTemplate>
+            <Grid Width="220" MinHeight="180"
+                  MaxHeight="250" Margin="8">
+                <!--  卡片内部有两行  -->
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="auto" />
+                    <RowDefinition />
+                </Grid.RowDefinitions>
+                <!--  每个卡片右上角的三个点(Grid是Panel的子类)，z轴值为1，覆盖显示  -->
+                <md:PopupBox HorizontalAlignment="Right" Panel.ZIndex="1">
+                    <Button Content="删除" />
+                </md:PopupBox>
+                <!--  圆角带颜色边框  -->
+                <Border Grid.RowSpan="2" Background="#18b433"
+                        CornerRadius="3" />
+                <!--  标题+内容  -->
+                <TextBlock Padding="10,5" FontWeight="Bold"
+                           Text="{Binding Title}" />
+                <TextBlock Grid.Row="1" Padding="10,5"
+                           Text="{Binding Content}" />
+
+                <!--  画出卡片右下角的水印圈圈  -->
+                <Canvas Grid.RowSpan="2" ClipToBounds="True">
+                    <Border Canvas.Top="10" Canvas.Right="-50"
+                            Width="120" Height="120"
+                            Background="#ffffff" CornerRadius="100"
+                            Opacity="0.15" />
+                    <Border Canvas.Top="80" Canvas.Right="-30"
+                            Width="120" Height="120"
+                            Background="#ffffff" CornerRadius="100"
+                            Opacity="0.15" />
+                </Canvas>
+            </Grid>
+        </DataTemplate>
+    </ItemsControl.ItemTemplate>
+</ItemsControl>
+```
+
+除了常见的 Panel、StackPanel、Grid 和 Canvas 外，WPF 还提供了其他一些面板控件，可以根据不同的布局需求来选择使用。
+
+1. DockPanel（停靠面板）：DockPanel 在容器中的子元素根据指定的方向停靠。可以通过设置 DockPanel.Dock 属性来控制子元素的停靠方向。
+2. WrapPanel（自动换行面板）：WrapPanel 将子元素按行或列进行自动换行布局。可以在 XAML 中设置 Orientation 属性来决定是水平换行还是垂直换行。
+3. UniformGrid（统一网格）：UniformGrid 将子元素按照指定的行数和列数进行等分布局。可以通过 Rows 和 Columns 属性来设置行数和列数。
+4. StackPanel（堆叠面板）：我们已经提到过 StackPanel，它按照指定的方向（水平或垂直）堆叠子元素。
+
+4）弹窗内部的界面设计
+
+```xml
+<DockPanel Width="300" LastChildFill="False">
+    <!--  添加待办  -->
+    <TextBlock Padding="20,10" DockPanel.Dock="Top"
+               FontSize="20" FontWeight="Bold"
+               Text="添加待办" />
+    <!--  状态  -->
+    <StackPanel Margin="20" DockPanel.Dock="Top"
+                Orientation="Horizontal">
+        <TextBlock VerticalAlignment="Center" Text="状态：" />
+        <ComboBox SelectedIndex="0">
+            <ComboBoxItem>待办</ComboBoxItem>
+            <ComboBoxItem>已完成</ComboBoxItem>
+        </ComboBox>
+    </StackPanel>
+    <!--  待办概要  -->
+    <TextBox Margin="20,0" md:HintAssist.Hint="请输入待办概要"
+             DockPanel.Dock="Top" />
+    <!--  待办内容  -->
+    <TextBox MinHeight="100" Margin="20"
+             md:HintAssist.Hint="请输入待办事项内容" DockPanel.Dock="Top" />
+    <Button Margin="20,0" Content="添加到待办"
+            DockPanel.Dock="Top" />
+</DockPanel>
+```
+
+`Padding`是指控件内部内容与其边框之间的空间。通过设置`Padding`属性，可以在控件的内部内容周围创建额外的空白区域。这个空白区域可以用来调整控件内部元素的位置和间距，但不会影响控件本身的大小。
+
+`Margin`是指控件与其周围元素之间的空间。通过设置`Margin`属性，可以在控件周围创建额外的空白区域。这个空白区域可以用来调整控件与其他元素之间的距离和对齐方式，同时也会影响控件本身的大小。
+
+简而言之，`Padding`用于控制控件内部元素的位置和间距，而`Margin`用于控制控件与其周围元素之间的距离和对齐方式。
+
+5）组合上DialogHost、DrawerHost的最终xaml代码：
+
+```xml
+<UserControl x:Class="MyTodo.Views.TodoView" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:local="clr-namespace:MyTodo.Views" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:md="http://materialdesigninxaml.net/winfx/xaml/themes" d:DesignHeight="450"
+             d:DesignWidth="800" mc:Ignorable="d">
+    <md:DialogHost>
+        <md:DrawerHost IsRightDrawerOpen="{Binding IsRightDrawerOpen}">
+            <!--  右侧弹出的抽屉样式  -->
+            <md:DrawerHost.RightDrawerContent>
+                <DockPanel Width="300" LastChildFill="False">
+                    <!--  添加待办  -->
+                    <TextBlock Padding="20,10" DockPanel.Dock="Top"
+                               FontSize="20" FontWeight="Bold"
+                               Text="添加待办" />
+                    <!--  状态  -->
+                    <StackPanel Margin="20" DockPanel.Dock="Top"
+                                Orientation="Horizontal">
+                        <TextBlock VerticalAlignment="Center" Text="状态：" />
+                        <ComboBox SelectedIndex="0">
+                            <ComboBoxItem>待办</ComboBoxItem>
+                            <ComboBoxItem>已完成</ComboBoxItem>
+                        </ComboBox>
+                    </StackPanel>
+                    <!--  待办概要  -->
+                    <TextBox Margin="20,0" md:HintAssist.Hint="请输入待办概要"
+                             DockPanel.Dock="Top" />
+                    <!--  待办内容  -->
+                    <TextBox MinHeight="100" Margin="20"
+                             md:HintAssist.Hint="请输入待办事项内容" DockPanel.Dock="Top" />
+                    <Button Margin="20,0" Content="添加到待办"
+                            DockPanel.Dock="Top" />
+                </DockPanel>
+            </md:DrawerHost.RightDrawerContent>
+            <Grid>
+                <!--  新建两行  -->
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <!--  第一行  -->
+                <StackPanel Margin="15,0,0,0" Orientation="Horizontal">
+                    <TextBox Width="250" VerticalContentAlignment="Center"
+                             md:HintAssist.Hint="查找待办事项..." md:TextFieldAssist.HasClearButton="True" />
+                    <TextBlock Margin="10,0" VerticalAlignment="Center"
+                               Text="筛选：" />
+                    <ComboBox SelectedIndex="0">
+                        <ComboBoxItem>全部</ComboBoxItem>
+                        <ComboBoxItem>待办</ComboBoxItem>
+                        <ComboBoxItem>已完成</ComboBoxItem>
+                    </ComboBox>
+                </StackPanel>
+                <!--  +添加待办  -->
+                <Button Grid.Row="0" Margin="10,5"
+                        HorizontalAlignment="Right"
+                        Command="{Binding TodoAddCommand}"
+                        Content="+ 添加待办" />
+                <!--  第二行  -->
+                <ItemsControl Grid.Row="1" HorizontalAlignment="Center"
+                              ItemsSource="{Binding TodoList}">
+                    <!--  创建自定义的布局面板模板  -->
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <!--  自动换行面板  -->
+                            <WrapPanel />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <!--  定义每个项如何显示的数据模板  -->
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Width="220" MinHeight="180"
+                                  MaxHeight="250" Margin="8">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="auto" />
+                                    <RowDefinition />
+                                </Grid.RowDefinitions>
+                                <!--  每个卡片右上角的三个点(Grid是Panel的子类)  -->
+                                <md:PopupBox HorizontalAlignment="Right" Panel.ZIndex="1">
+                                    <Button Content="删除" />
+                                </md:PopupBox>
+                                <!--  圆角边框  -->
+                                <Border Grid.RowSpan="2" Background="#18b433"
+                                        CornerRadius="3" />
+                                <!--  标题+内容  -->
+                                <TextBlock Padding="10,5" FontWeight="Bold"
+                                           Text="{Binding Title}" />
+                                <TextBlock Grid.Row="1" Padding="10,5"
+                                           Text="{Binding Content}" />
+
+                                <!--  画出卡片右下角的水印圈圈  -->
+                                <Canvas Grid.RowSpan="2" ClipToBounds="True">
+                                    <Border Canvas.Top="10" Canvas.Right="-50"
+                                            Width="120" Height="120"
+                                            Background="#ffffff" CornerRadius="100"
+                                            Opacity="0.15" />
+                                    <Border Canvas.Top="80" Canvas.Right="-30"
+                                            Width="120" Height="120"
+                                            Background="#ffffff" CornerRadius="100"
+                                            Opacity="0.15" />
+                                </Canvas>
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                    <!--  定义每个项如何显示的数据模板  -->
+                </ItemsControl>
+            </Grid>
+        </md:DrawerHost>
+
+    </md:DialogHost>
+</UserControl>
+```
+
+6）点击新增待办按钮后打开弹窗，所以按钮绑定命令` <Button Command="{Binding TodoAddCommand}" />`来操作弹窗的显示的数据属性IsRightDrawerOpen
+
+` <md:DrawerHost IsRightDrawerOpen="{Binding IsRightDrawerOpen}">`
+
+ViewModel代码如下
+
+```C#
+using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using MyTodo.Common.Models;
+using Prism.Commands;
+using Prism.Mvvm;
+
+namespace MyTodo.ViewModels
+{
+    public class TodoViewModel : BindableBase
+    {
+        /// <summary>
+        /// 按钮绑定的添加待办命令
+        /// </summary>
+        public DelegateCommand TodoAddCommand { get; set; }
+        public TodoViewModel()
+        {
+            todoList = new ObservableCollection<TodoDto>();
+            TodoAddCommand = new DelegateCommand(AddTodoAction);
+            InitialTodoList();
+        }
+        private ObservableCollection<TodoDto> todoList;
+
+        public ObservableCollection<TodoDto> TodoList
+        {
+            get { return todoList; }
+            set { todoList = value; RaisePropertyChanged(); }
+        }
+        private bool isRightDrawerOpen;
+        /// <summary>
+        /// 右侧抽屉是否展开
+        /// </summary>
+        public bool IsRightDrawerOpen
+        {
+            get { return isRightDrawerOpen; }
+            //set { isRightDrawerOpen = value; RaisePropertyChanged(); }
+            set { SetProperty(ref isRightDrawerOpen, value); }
+        }
+
+        private void InitialTodoList()
+        {
+            TodoList = new ObservableCollection<TodoDto>();
+
+            for (int i = 0; i < 20; i++)
+            {
+                var todo = new TodoDto()
+                {
+                    Id = i,
+                    CreateTime = DateTime.Now,
+                    Content = "测试数据",
+                    Title = "标题" + i,
+                    Status = 1,
+                    UpdateTime = DateTime.Now
+                };
+                todoList.Add(todo);
+            }
+        }
+        //TodoAddCommand命令执行的方法
+        private void AddTodoAction()
+        {
+            IsRightDrawerOpen = true;
+        }
+    }
+}
+```
+

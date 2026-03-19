@@ -4,7 +4,11 @@ Linux一般将文件可存取的身份分为三个类别，分别是 owner/group
 
 Linux是个多用户多任务的系统，因此可能常常会有多人同时使用这部主机来进行工作的情况发生
 
-默认的情况下，所有的系统上的帐号与一般身份使用者，还有那个root的相关信息， 都是记录在/etc/passwd这个文件内。个人的密码则是记录在/etc/shadow这个文件下。Linux所有的群组名称都纪录在/etc/group内
+| 信息                    | 存储位置        |
+| --------------------- | ----------- |
+| 系统帐号/一般身份使用者/root相关信息 | /etc/passwd |
+| 个人的密码                 | /etc/shadow |
+| 群组名称                  | /etc/group  |
 
 <img src="./assets/2025-11-24-13-20-55-image.png" title="" alt="" data-align="center">
 

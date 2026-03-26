@@ -283,6 +283,8 @@ cat -n /etc/man_db.conf | head -n 20 | tail -n 10
 
 ### 6.3.4 非纯文本文件：od
 
+Octal Dump
+
 事实上，由于可执行文件通常是 binary file，使用上头提到的指令来读取他的内容时， 会产生类似乱码的数据，可以利用 od 这个指令来读取
 
 ```bash
@@ -308,7 +310,7 @@ touch 这个指令最常被使用的情况
 
 每个文件在linux下面都会记录三个时间参数
 
-- modification time （mtime）文件的内容变更（默认）
+- modification time （mtime）文件的内容变更（**默认显示**）
 
 - status time （ctime）文件的状态变更，如权限与属性
 
@@ -327,19 +329,42 @@ root@DESKTOP-I0DQE4R:/etc# ls -l /etc/ucf.conf ; ls -l --time=atime /etc/ucf.con
 touch [-acdmt] 文件
 ```
 
-| 参数  | 含义                                       | 示例                                                                  |
-| --- | ---------------------------------------- | ------------------------------------------------------------------- |
-| -a  | 仅修订 access time                          |                                                                     |
-| -c  | 仅修改文件的时间，若该文件不存在则不创建新文件                  | 如果文件不存在，命令不会创建新文件<br/>touch -c non_existing_file                    |
-| -m  | 仅修改 mtime                                |                                                                     |
-| -d  | 后面可以接欲修订的日期而不用目前的日期，也可以使用 --date="日期或时间" | touch -m -d "2024-10-01" file.txt<br/>touch -d "yesterday" file.txt |
-| -t  | 后面可以接欲修订的时间而不用目前的时间，格式为[YYYYMMDDhhmm]    | touch -t 202405201430.25 file.txt                                   |
+| 参数  | 含义                                       | 示例                                                                      |
+| --- | ---------------------------------------- | ----------------------------------------------------------------------- |
+| -a  | 仅修订 access time                          |                                                                         |
+| -c  | 仅修改文件的时间，若该文件不存在则不创建新文件                  | 如果文件不存在，命令不会创建新文件<br/>`touch -c non_existing_file`                      |
+| -m  | 仅修改 mtime                                |                                                                         |
+| -d  | 后面可以接欲修订的日期而不用目前的日期，也可以使用 --date="日期或时间" | `touch -m -d "2024-10-01" file.txt`<br/>`touch -d "yesterday" file.txt` |
+| -t  | 后面可以接欲修订的时间而不用目前的时间，格式为[YYYYMMDDhhmm]    | `touch -t 202405201430.25 file.txt`                                     |
 
 如果 touch 后面有接文件则该文件的三个时间 （atime/ctime/mtime） 都会更新为目前的时间.若该文件不存在则会主动的创建一个新的空的文件
 
 使用cp命令时数据的内容与属性是被复制过来的，因此文件内容时间（mtime）与原本文件相同，状态（ctime）就变成现在的时间
 
+## 权限例题：
+
+系统有个一般身份使用者userA，他的群组属于GroupA，他的主文件夹在 /home/userA。 你是root，你想将你的 ~/.bashrc 复制给他，可以怎么做？
+
+root 虽然可以将这个文件复制给 userA，不过这个文件在 userA的主文件夹中却可能让 userA没有办法读写（因为该文件属于 root 的嘛！而 userA又不能使用 chown 之故）此外，我们又担心覆盖掉 userA自己的 .bashrc 配置文件，因此，我们可以
+复制文件：
+
+```bash
+cp ~/.bashrc ~dmtsai/.bashrc
+```
+
+修改属性：
+
+```bash
+chown dmtsai:dmtsai ~dmtsai/.bashrc
+```
+
+
+
 ## 6.4 文件与目录的默认权限与隐藏权限
+
+一个文件有若干个属性， 包括读写执行（r, w, x）等基本权限，及是否为目录 （d） 与文件 （-） 或者是链接文件 （l） 等等的属性。修改属性的方法在前面也约略提过了（chgrp, chown, chmod）
+
+除了基本r, w, x权限外我们还可以设置其他的系统隐藏属性， 这部份可使用 chattr 来设置，而以 lsattr 来查看
 
 ### 6.4.1 文件默认权限：umask
 

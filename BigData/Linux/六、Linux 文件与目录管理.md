@@ -479,11 +479,14 @@ root@DESKTOP-I0DQE4R:/tmp# lsattr attrtest
 
 查看 /tmp 和 /usr/bin/passwd 的权限，发现还有其他的特殊权限（ x位置变成了s和 t ）
 
-|      | s的位置              | 含义      | 示例         |
-| ---- | ----------------- | ------- | ---------- |
-| SUID | s 标志在文件**拥有者**的 x | Set UID | rwsr-xr-x  |
-| SGID | s 标志在文件**群组**的 x  | Set GID | -rwx--s--x |
-| SBIT | s 标志在文件**拥有者**的 x |         |            |
+✅ s / t = 特殊权限存在 + x 存在（有效）
+✅ S / T= 特殊权限存在 + x 不存在（无效，占位显示）
+
+|      | 出现位置             | 含义             | 示例               | 数字设置                               | 符号设置                               |
+| ---- | ---------------- | -------------- | ---------------- | ---------------------------------- | ---------------------------------- |
+| SUID | 在文件**owner**的 x  | Set UID        | x->s: rwsr-xr-x  | chmod u=rwxs,go=x test; ls -l test | chmod u=rwxs,go=x test; ls -l test |
+| SGID | 在文件**group**的 x  | Set GID        | x->s: -rwxr-sr-x |                                    |                                    |
+| SBIT | 在文件**others**的 x | Set Sticky Bit | x->t: -rwxr-xr-t |                                    |                                    |
 
 ```bash
 root@DESKTOP-I0DQE4R:/tmp# ls -ld /tmp; ls -l /usr/bin/passwd
@@ -514,9 +517,6 @@ SUID 仅可用在binary program 上， 不能够用在 shell script (调用binar
 
 当 s 标志在文件**拥有者**的 x 项目为 SUID，那 s 在**群组**的 x 时则称为 Set GID（如：-rwx--s--x），简称为**SGID** 的特殊权限。与 SUID 不同的是，SGID 可以针对文件或目录来设置SGID 
 
-
-
-
 | 文件                              | 目录                                                        |
 | ------------------------------- | --------------------------------------------------------- |
 | SGID 对二进制程序有用                   | 使用者若对于此目录具有 r 与 x 的权限时，该使用者能够进入此目录                        |
@@ -537,6 +537,127 @@ SUID 仅可用在binary program 上， 不能够用在 shell script (调用binar
 
 假设要将一个文件权限改为“-rwsr-xr-x”时，由于 s 在owner权限中，所以是SUID ，因此， 在原先的 755 之前还要加上 4 ，也就是：`chmod 4755 filename`来设置
 
-因为 s 与 t 都是取代 x 这个权限的，user, group 以及 others 都没有 x 这个可执行的标志时，即666，
+#### 举例
+
+```bash
+chmod u=rwxs,go=x test; ls -l test
+```
+
+显示：`-rws--x--x`
+
+- user   = rws（rwx+SUID）
+
+- group  = --x（group = --x）
+
+- others = --x （others = --x）
+
+```bash
+chmod g+s,o+t test
+```
+
+显示：`-rws--s--t`
+
+- user   rws
+
+- group  --s
+
+- others --t
+
+#### 6.4.4 文件类型 file
+
+某个文件的基本数据，例如是属于 ASCII 或者是 data 文件，或者是 binary ， 且其中有没有使用到动态函数库 （share library） 等等的信息
+
+```bash
+[root@study ~]# file ~/.bashrc
+/root/.bashrc: ASCII text ;==告诉我们是 ASCII 的纯文本文件啊！
+```
 
 ## 6.5 指令与文件的搜索
+
+#### 6.5.1 查找命令的完整文件名 which
+
+```bash
+[root@study ~]# which [-a] command
+选项或参数：
+-a ：将所有由 PATH 目录中可以找到的指令均列出，而不止第一个被找到的指令名称
+```
+
+因为 history 是“bash 内置的指令”啦！ 但是 which 默认是找 PATH内所规范的目录，所以当然一定找不到的
+
+#### 6.5.1 查找指定文件的路径 whereis locate find
+
+**where**  只找系统中某些特定目录下面的文件，所以会比find快
+
+| 参数   | 功能                                                  | 示例                  |
+| ---- | --------------------------------------------------- | ------------------- |
+| -l   | 列出 whereis 会去查询的主要目录<br/>/bin、/sbin、/usr/share/man等 |                     |
+| -b（） | 只找 binary 格式的文件                                     |                     |
+| -m   | 只找在说明文档 manual 路径下的文件                               | `whereis -m passwd` |
+| -s   | 只找 source 来源文件                                      |                     |
+| -u   | 搜寻不在上述三个项目当中的其他特殊文件                                 |                     |
+
+**locate / updatedb**
+
+locate 寻找的数据是由“已创建的数据库 /var/lib/mlocate/” 里面的数据所搜寻到的，而数据库的创建默认是在每天执行一次。所以当你新创建起来的文件， 却还在数据库更新之前搜寻该文件，那么 locate 会告诉你“找不到。更新 locate 数据库的方法非常简单，直接输入` updatedb `
+
+- `updatedb`：根据 /etc/updatedb.conf 的设置去搜寻系统硬盘内的文件名，并更新 /var/lib/mlocate 内的数据库文件
+
+-  `locate`：依据 /var/lib/mlocate 内的数据库记载，找出使用者输入的关键字文件名。
+
+| 参数               | 功能                   | 示例                   |
+| ---------------- | -------------------- | -------------------- |
+| -i（ignore case）  | 忽略大小写                |                      |
+| -c（count）        | 不输出文件名，仅计算找到的文件数量    |                      |
+| -l（limit）        | 限制输出行数               | `locate -l 5 passwd` |
+| -S（statistics）   | 查看数据库统计信息，(文件/目录数量等) | `locate -S`          |
+| -r（regex/regexp） | 正则匹配                 |                      |
+
+**find**
+
+- 与时间有关的选项：共有 -atime, -ctime 与 -mtime
+
+| 参数          | 功能                               | 示例                                                          |
+| ----------- | -------------------------------- | ----------------------------------------------------------- |
+| -mtime n    | 在 n 天之前的“一天之内”被更动过内容的文件          | `find / -mtime 0`<br/>从现在开始到 24 小时前                         |
+| -mtime +n   | 在 n 天之前（不含 n 天本身）被更动过内容的文件文件名    |                                                             |
+| -mtime -n   | 在 n 天之内（含 n 天本身）被更动过内容的文件文件名     | `find /var -mtime -4`<br/>4天内被更动过的文件文件名                     |
+| -newer file | file 为一个存在的文件，列出比 file 还要新的文件文件名 | `find /etc -newer /etc/passwd`<br/>如果文件日期比 /etc/passwd 新就列出 |
+
+```bash
+<------(+4) <-(4)-> --------(+4)-------->
+
+7    6    5        4    3    2    1    现在
+```
+
+- 与使用者或群组名称相关的参数
+
+1️⃣ 先去 /etc/passwd 或 /etc/group 查 username的映射
+2️⃣ 查到 username对应的 UID=1001
+3️⃣ 再去 inode 里面匹配 UID
+
+| 参数          | 功能                       | 示例                                                     |
+| ----------- | ------------------------ | ------------------------------------------------------ |
+| -uid n      | 查找 UID对应的文件              |                                                        |
+| -gid n      | 查找 GID对应的文件              |                                                        |
+| -user name  | 查找 username 对应的文件        | `find /home -user dmtsai`<br/>搜寻 /home 下面属于 dmtsai 的文件 |
+| -group name | 查找 groupname 对应的文件       | 查孤儿文件（安全审计必用）                                          |
+| -nouser     | user 不存在 /etc/passwd 的文件 | `find / -nouser`<br/>不属于任何人的文件                         |
+| -nogroup    | group 不存在 /etc/group 的文件 |                                                        |
+
+- 与文件权限及名称有关的参数
+
+| 参数             | 功能                                                                                        | 示例                                                                                      |
+| -------------- | ----------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| -name filename | 搜寻文件名称为 filename 的文件                                                                      | `find / -name "*passwd*"`<br/>找出文件名包含 passwd 这个文件                                       |
+| -size [+-]SIZE | 搜寻比 SIZE 还要大（+）或小（-）的文件<br/>c: 代表 Byte， k: 代表 1024Bytes                                   | `find / -size +50k`                                                                     |
+| -type TYPE     | 搜寻文件的类型为 TYPE 的文件<br/>一般正规文件 （f）,设备文件 （b, c）,目录 （d）<br/> 链接文件 （l）, socket （s）, 及 FIFO （p） | `find /run -type s`<br/>找出 /run 目录下，文件类型为 Socket 文件名                                    |
+| -perm mode     | 搜寻文件权限 = mode 的文件                                                                         |                                                                                         |
+| -perm -mode    | 搜寻文件每一位权限 都与 mode每位>=的文件                                                                  | `find / -perm /7000`<br/>同时含有 ---s--s--t 的所有三个权限                                        |
+| -perm /mode    | 用户 or 组 or 其它 权限 >= mode文件                                                                | `find /usr/bin /usr/sbin -perm /6000`<br/>/usr/bin和/usr/sbin 目录下， 只要具有 SUID 或 SGID 就列出来 |
+
+- 额外动作
+
+| 参数            | 功能                                                                                                                                                            | 示例                                                      |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| -exec command | -exec 后面可再接额外的指令来处理搜寻到的结果(指令不支持命令别名)<br/>-exec 必须指定“对每个匹配结果执行的命令”，并用`\` 表示“每找到一个就执行一次”（分次print）<br/>或`+`表示“尽量批量执行（一起print，更高效）”<br/>还必须用` {} `作为“当前找到的文件”的占位符 | `find /usr/bin /usr/sbin -perm /7000 -exec ls -l {} +;` |
+| -print        | 将结果打印到屏幕上                                                                                                                                                     |                                                         |

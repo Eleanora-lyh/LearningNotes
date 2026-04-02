@@ -568,15 +568,15 @@ mount -o anon \\192.168.88.101\ /hdfs Z:
 
 打开计算机，可以看到 NFS服务器 以磁盘的形式显示
 
-### ## 四、HDFS的存储原理
+##  四、HDFS的存储原理
 
 文件在存储到HDFS的集群前会被拆分为Block块，HDFS的最小储存单位(每个256M,可改)。并通过副本冗余防止数据丢失
 
 <img src="C:\Users\Eleanora\AppData\Roaming\Typora\typora-user-images\image-20260325221246751.png" alt="image-20260325221246751" style="zoom:40%;" />
 
-### fsck命令
+### 4.1 fsck命令 File System Check
 
-### 配置HDFS数据块的副本数量
+#### 4.1.1 配置HDFS数据块的副本数量
 
 | 功能                | 位置                              | 代码                                                                             |
 | ----------------- | ------------------------------- | ------------------------------------------------------------------------------ |
@@ -584,10 +584,10 @@ mount -o anon \\192.168.88.101\ /hdfs Z:
 | 上传文件时临时决定副本数量     | 上传命令的中间添加`-D dfs.replication=2` | `hdfs dfs -D dfs.replication=2 -put test.txt /tmp/`                            |
 | 已存在的HDFS文件，修改副本数量 | 指定path的内容会被修改为2个副本存储            | `hdfs dfs -setrep [-R] 2 path`<br/>-R表示对子目录的文件同样生效                             |
 
-#### fsck命令查看文件副本数
+#### 4.1.2 fsck命令查看文件副本数
 
 ```bash
-hdfs fsck 文件路径 [-files [-blocks [-location]]]
+hdfs fsck 文件路径 [-files [-blocks [-locations]]]
 ```
 
 `-files` 列出路径内的文件状态
@@ -596,7 +596,66 @@ hdfs fsck 文件路径 [-files [-blocks [-location]]]
 
 `-files -blocks -location` 输出每个block的详情
 
+举例，查看某文件的状态+blocks+blocks详情：
+
+```bash
+[hadoop@node1 ~]$ hdfs fsck new.txt -files -blocks -locations
+```
+
+输出
+
+```text
+Connecting to namenode via http://node1:9870/fsck?ugi=hadoop&files=1&blocks=1&locations=1&path=%2Fuser%2Fhadoop%2Fnew.txt
+FSCK started by hadoop (auth:SIMPLE) from /192.168.88.101 for path /user/hadoop/new.txt at Mon Mar 30 21:19:48 CST 2026
+
+/user/hadoop/new.txt 42 bytes, replicated: replication=3, 1 block(s):  OK
+0. BP-397460804-192.168.88.101-1774236967721:blk_1073741826_1003 len=42 Live_repl=3  [DatanodeInfoWithStorage[192.168.88.103:9866,DS-1045212b-874e-4331-84bf-4fcff0a31ddc,DISK], DatanodeInfoWithStorage[192.168.88.102:9866,DS-fdb19663-a199-4777-986a-75a2e43d1231,DISK], DatanodeInfoWithStorage[192.168.88.101:9866,DS-37aaf5d8-3886-47ac-bd88-998ae2deef58,DISK]]
+
+
+Status: HEALTHY
+ Number of data-nodes:	3
+ Number of racks:		1
+ Total dirs:			0
+ Total symlinks:		0
+
+Replicated Blocks:
+ Total size:	42 B
+ Total files:	1
+ Total blocks (validated):	1 (avg. block size 42 B)
+ Minimally replicated blocks:	1 (100.0 %)
+ Over-replicated blocks:	0 (0.0 %)
+ Under-replicated blocks:	0 (0.0 %)
+ Mis-replicated blocks:		0 (0.0 %)
+ Default replication factor:	3
+ Average block replication:	3.0
+ Missing blocks:		0
+ Corrupt blocks:		0
+ Missing replicas:		0 (0.0 %)
+ Blocks queued for replication:	0
+
+Erasure Coded Block Groups:
+ Total size:	0 B
+ Total files:	0
+ Total block groups (validated):	0
+ Minimally erasure-coded block groups:	0
+ Over-erasure-coded block groups:	0
+ Under-erasure-coded block groups:	0
+ Unsatisfactory placement block groups:	0
+ Average block group size:	0.0
+ Missing block groups:		0
+ Corrupt block groups:		0
+ Missing internal blocks:	0
+ Blocks queued for replication:	0
+FSCK ended at Mon Mar 30 21:19:48 CST 2026 in 3 milliseconds
+
+
+The filesystem under path '/user/hadoop/new.txt' is HEALTHY
+
+```
+
 验证了文件有多个副本、文件被分成多个块存储，每个块256M
+
+默认每个块256M，但也可以在`hdfs-site.xml`中配置
 
 ```xml
 <property>
@@ -605,3 +664,75 @@ hdfs fsck 文件路径 [-files [-blocks [-location]]]
     <descriptino>设置HDFS块大小，单位b</descriptino>
 </property>
 ```
+
+### 4.2 NameNode元数据
+
+hdfs中文件很多，每个文件又被分为了很多个块，当想要查询一个文件时应该找？
+NameNode基于edits**（NameNode记录）**和FSImage的配合，完成整个文件系统的管理
+
+- 每次对HDFS的操作，均被edits文件记录。NameNode 会定期（默认1小时）或当 edits 文件达到一定大小（默认64MB）时，触发 **SecondaryNameNode**执行 **检查点操作**。
+- 该操作会将**上一个检查点之后的 edits 日志**与**上一个检查点的 FSImage** 合并，生成一个**全新的、更完整的 FSImage**
+- 这个新生成的 FSImage 会被保存到磁盘，**它并不会覆盖旧的 FSImage**，而是作为一个新的版本存在
+
+**“最终状态”的载体**：**最新的“文件系统最终状态”实际上是由“最新的那个 FSImage + 它之后的所有 edits 日志”共同定义的。** NameNode 启动时，正是将这两者结合，在内存中生成唯一的最新元数据镜像。
+
+其中hdfs的数据目录current路径记录在
+
+```bash
+vim /export/server/hadoop/etc/hadoop/hdfs-site.xml
+```
+
+的
+```xml
+<property>
+        <name>dfs.namenode.name.dir</name>
+        <value>/data/nn</value>
+    </property>
+
+```
+
+进入数据目录current路径后，即可看到edits和FSImage
+
+```bash
+[root@node1 nn]# cd /data/nn/current
+[root@node1 current]# ls -nl
+total 5244
+# 省略 。。。。
+-rw-rw-r-- 1 1001 1001     664 Mar 30 21:47 edits_0000000000000000114-0000000000000000123
+-rw-rw-r-- 1 1001 1001 1048576 Mar 30 21:47 edits_inprogress_0000000000000000124
+-rw-rw-r-- 1 1001 1001     690 Mar 30 08:12 fsimage_0000000000000000113
+-rw-rw-r-- 1 1001 1001      62 Mar 30 08:12 fsimage_0000000000000000113.md5
+-rw-rw-r-- 1 1001 1001     760 Mar 30 21:47 fsimage_0000000000000000123
+-rw-rw-r-- 1 1001 1001      62 Mar 30 21:47 fsimage_0000000000000000123.md5
+-rw-rw-r-- 1 1001 1001       4 Mar 30 21:47 seen_txid
+-rw-rw-r-- 1 1001 1001     217 Mar 27 21:00 VERSION
+
+```
+
+### 4.3 SecondaryNamenode 负责元数据合并
+
+元数据的合并通过 检查时间，条件符合来控制
+
+- 检查是否达到条件：`dfs.namenode.checkpoint.check.period` 默认60s
+
+- 以下任意一个条件满足则发生
+
+  - `dfs.namenode.checkpoint.period`，默认3600s(1h)
+
+  - `dfs.namenode.checkpoint.txns`，默认100w次事务
+
+### 4.4 HDFS数据读写流
+
+![image-20260331074609575](./assets/image-20260331074609575.png)
+
+
+
+![image-20260331074807481](./assets/image-20260331074807481.png)
+
+无论读写，namenode都不经手数据，均由客户端和datanode直接通讯，否则namenode压力太大。
+
+网络距离：
+
+同一台机器->同一个局域网（交换机）->跨越交换机->跨越交数据中心
+
+HDFS内置网络距离算法，通过IP地址和路由表来推断网络距离

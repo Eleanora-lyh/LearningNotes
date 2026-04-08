@@ -268,20 +268,17 @@ root 虽然可以将这个文件复制给 userA，不过这个文件在 userA的
 复制文件：
 
 ```bash
-cp ~/.bashrc ~userA/.bashrc
+cp ~/.bashrc /home/userA/.bashrc
 ```
 
 修改所属用户+所属群组：
 
 ```bash
 chown userA:groupA ~userA/.bashrc
+chmod 644 /home/userA/.bashrc
 ```
 
-或者直接使用
 
-```bash
-cp -a ~/.bashrc ~userA/.bashrc
-```
 
 2、我想在 /tmp 下面创建一个目录，这个目录名称为 chapter6_1 ，并且这个目录拥有者为 userA， 群组为 groupA，此外，任何人都可以进入该目录浏览文件，不过除了 userA之外，其他人都不能修改该目录下的文件。
 

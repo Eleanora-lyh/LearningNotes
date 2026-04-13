@@ -121,13 +121,13 @@ $HADOOP_HOME/sbin/stop-dfs.sh(hadoop-daemon.sh)
   5294 ResourceManager
   ```
 
-- Hadoop启动日志路径：`/export/server/hadoop-3.3.0/logs/`
+- Hadoop启动日志路径：`/export/server/hadoop-3.4.2/logs/`
 
 ### 2.2 HDFS的文件操作
 
 命令行操作大全：
 
-https://hadoop.apache.org/docs/r3.3.4/hadoop-project-dist/hadoop-common/FileSystemShell.html
+https://hadoop.apache.org/docs/r3.4.2/hadoop-project-dist/hadoop-common/FileSystemShell.html
 
 当登录linux的hadoop用户后，默认会进入 /home/hadoop/文件夹
 

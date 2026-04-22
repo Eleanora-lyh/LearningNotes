@@ -104,11 +104,11 @@ Last login: Thu Mar 12 21:42:54 CST 2026 on pts/0
 $HADOOP_HOME/sbin/stop-dfs.sh(hadoop-daemon.sh)
 ```
 
-|          | 手动逐个进程启停(控制所在机器的进程启停)                                                             | shell脚本一键启停<br />(配置好机器之间的SSH免密登录和workers文件)                            |
-| -------- | --------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| HDFS集群   | # hadoop2.x版本命令($HADOOP_HOME/sbin/hadoop-daemon.sh)<br />`hadoop-daemon.sh (start | status                                                                  |
-| YARN集群   | # yarn2.x版本命令<br />`yarn-daemon.sh start                                          | stop resourcemanager                                                    |
-| Hadoop集群 |                                                                                   | `start-all.sh`<br />`stop-all.sh`<br />一个命令代替start-dfs.sh和start-yarn.sh |
+|            | 手动逐个进程启停(控制所在机器的进程启停)                     | shell脚本一键启停<br />(配置好机器之间的SSH免密登录和workers文件) |
+| ---------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| HDFS集群   | # hadoop2.x版本命令($HADOOP_HOME/sbin/hadoop-daemon.sh)<br />`hadoop-daemon.sh start | status                                                       |
+| YARN集群   | # yarn2.x版本命令<br />`yarn-daemon.sh start                 | stop resourcemanager                                         |
+| Hadoop集群 |                                                              | `start-all.sh`<br />`stop-all.sh`<br />一个命令代替start-dfs.sh和start-yarn.sh |
 
 - 启动完毕之后可以使用`jps命令`查看进程是否启动成功
   

@@ -595,7 +595,7 @@ drwxrwxrwx   - hadoop supergroup          0 2026-04-16 22:06 /user/hive/warehous
 
   
 
-- 方式2：`bin/hive --service hiveserver2` (HS2)是大数据架构中的标准组件,是hive内置的ThriftServer服务。一个**长期运行、支持多用户并发访问的Thrift/RPC服务**。它提供端口10000供其他客户端（hive内置的beeline客户端 命令行工具、第三方的图形化SQL工具 DataGrip DBeaver）连接。
+- 方式2：`bin/hive --service hiveserver2` (HS2)是大数据架构中的标准组件,是hive内置的ThriftServer服务。一个**长期运行、支持多用户并发访问的Thrift/RPC服务**。它提供端口10000供其他客户端（hive内置的 **beeline** 客户端 命令行工具、第三方的图形化SQL工具 DataGrip DBeaver）连接。
 
   - **远程访问**：用户或应用程序无需登录Hive所在服务器，通过网络即可连接。
   - **多用户并发**：支持多个用户同时提交查询，并提供了基本的权限管理。
@@ -620,7 +620,39 @@ drwxrwxrwx   - hadoop supergroup          0 2026-04-16 22:06 /user/hive/warehous
   0: jdbc:hive2://localhost:10000> show databases;
   ```
 
-验证是否启动hiveserver2成功
+### 4.5.1  
+
+
+
+```text
++-------------------+      Thrift RPC 调用 (基于IDL约定)    +---------------------+
+|  你的Python程序    |  ================================>  |    HiveServer2服务   |
+|  (使用Thrift生成   |  <================================  | (Java实现，持续运行)   |
+|   的Python客户端)  |        返回查询结果/状态           	  |                     |
++-------------------+                                     +---------------------+
+         |                                                          |
+         | 1. 调用`execute_sql("SELECT ...")`                        | 3. 在Hadoop集群执行查询
+         | 2. Thrift库序列化请求，通过TCP发送到10000端口           	   | 4. 获取结果，序列化后返回
+         |                                                          |
++-------------------+                                     +---------------------+
+|   网络传输层       |                                     |    Hadoop集群        |
+|   (TCP/IP)        |                                     |  (HDFS, YARN, etc.) |
++-------------------+                                     +---------------------+
+```
+
+
+
+| **特性**       | **Hive CLI (`bin/hive`)**                | **HiveServer2 + Beeline**                          |
+| :------------- | :--------------------------------------- | :------------------------------------------------- |
+| **架构模式**   | 单机直接模式                             | 客户端/服务器 (C/S) 模式                           |
+| **用户并发**   | **单用户**                               | **多用户并发**                                     |
+| **访问方式**   | 必须登录服务器本地执行                   | **远程网络访问** (JDBC/ODBC)                       |
+| **主要客户端** | Hive 自带CLI                             | **Beeline** (官方推荐)、各种JDBC程序               |
+| **应用场景**   | 本地测试、简单脚本、学习                 | **生产环境标准**、被调度系统、BI工具、应用程序调用 |
+| **安全性**     | 低（以启动CLI的用户身份执行）            | 高（支持用户身份认证和授权）                       |
+| **未来发展**   | 已标记为**过时**，在新版本中可能会被移除 | **主流和未来方向**                                 |
+
+#### 验证是否启动hiveserver2成功
 
 ```bash
 [hadoop@node1 hive]$ jps
@@ -662,39 +694,72 @@ UNNAMED --add-opens=java.base/sun.security.util=ALL-UNNAMED --add-opens=java.bas
 hadoop    12233  11799  0 08:09 pts/0    00:00:00 grep --color=auto 6847
 ```
 
+同时查看10000的端口也被hiveserver2占用
 
-
-### 4.5.1 HiveServer & Beeline
-
-```text
-+-------------------+      Thrift RPC 调用 (基于IDL约定)    +---------------------+
-|  你的Python程序    |  ================================>  |    HiveServer2服务   |
-|  (使用Thrift生成   |  <================================  | (Java实现，持续运行)   |
-|   的Python客户端)  |        返回查询结果/状态           	  |                     |
-+-------------------+                                     +---------------------+
-         |                                                          |
-         | 1. 调用`execute_sql("SELECT ...")`                        | 3. 在Hadoop集群执行查询
-         | 2. Thrift库序列化请求，通过TCP发送到10000端口           	   | 4. 获取结果，序列化后返回
-         |                                                          |
-+-------------------+                                     +---------------------+
-|   网络传输层       |                                     |    Hadoop集群        |
-|   (TCP/IP)        |                                     |  (HDFS, YARN, etc.) |
-+-------------------+                                     +---------------------+
+```bash
+[hadoop@node1 hive]$ netstat -anp|grep 10000
+(Not all processes could be identified, non-owned process info
+ will not be shown, you would have to be root to see it all.)
+tcp6       0      0 :::10000                :::*                    LISTEN      12010/java   
 ```
 
+#### Beeline
 
+beeline是JDBC客户端，通过JDBC协议和HiveServer2服务进行通信，协议地址：jdbc:hive2://node1:10000
 
-| **特性**       | **Hive CLI (`bin/hive`)**                | **HiveServer2 + Beeline**                          |
-| :------------- | :--------------------------------------- | :------------------------------------------------- |
-| **架构模式**   | 单机直接模式                             | 客户端/服务器 (C/S) 模式                           |
-| **用户并发**   | **单用户**                               | **多用户并发**                                     |
-| **访问方式**   | 必须登录服务器本地执行                   | **远程网络访问** (JDBC/ODBC)                       |
-| **主要客户端** | Hive 自带CLI                             | **Beeline** (官方推荐)、各种JDBC程序               |
-| **应用场景**   | 本地测试、简单脚本、学习                 | **生产环境标准**、被调度系统、BI工具、应用程序调用 |
-| **安全性**     | 低（以启动CLI的用户身份执行）            | 高（支持用户身份认证和授权）                       |
-| **未来发展**   | 已标记为**过时**，在新版本中可能会被移除 | **主流和未来方向**                                 |
+进入 beeline
 
+```bash
+[hadoop@node1 ~]$ echo $HIVE_HOME
+/export/server/hive
+[hadoop@node1 ~]$ $HIVE_HOME/bin/beeline
+Beeline version 3.1.3 by Apache Hive
+beeline> !connect jdbc:hive2://node1:10000
+Connecting to jdbc:hive2://node1:10000
+Enter username for jdbc:hive2://node1:10000: hadoop
+Enter password for jdbc:hive2://node1:10000: 
+Connected to: Apache Hive (version 3.1.3)
+Driver: Hive JDBC (version 3.1.3)
+Transaction isolation: TRANSACTION_REPEATABLE_READ
+0: jdbc:hive2://node1:10000> 
 
+```
+
+测试连接是否成功
+
+```bash
+0: jdbc:hive2://node1:10000> show databases;
++----------------+
+| database_name  |
++----------------+
+| default        |
++----------------+
+1 row selected (1.043 seconds)
+0: jdbc:hive2://node1:10000> 
+```
 
 ### 4.5.2 DataGrip & DBeaver
 
+配置连接第三方数据库软件时，要确保hiveserver2已经启动，通过监听10000端口来判断
+
+```bash
+[hadoop@node1 ~]$ netstat -tlnp | grep 10000
+(Not all processes could be identified, non-owned process info
+ will not be shown, you would have to be root to see it all.)
+tcp6       0      0 :::10000                :::*                    LISTEN      12010/java 
+```
+
+没有启动的话则执行后台启动
+
+```bash
+$ nohup bin/hive --service metastore >> logs/metastore.log 2>&1 & # 先启动metastore，再启动hiveserver2
+$ mkdir -p /logs # 进入￥HIVE_HOME后创建日志目录（如果不存在的话）
+$ nohup bin/hive --service hiveserver2 >> logs/hiveserver2.log 2>&1 &
+```
+
+在DataGrip中添加Hive数据库
+
+![image-20260425105647885](./assets/image-20260425105647885.png)
+在DBeaver中添加Hive数据库
+
+![image-20260425110319372](./assets/image-20260425110319372.png)

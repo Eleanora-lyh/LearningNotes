@@ -355,13 +355,289 @@ DESC FORMATTED test_external;
 内->外
 
 ```hive
-ALTER TABLE test_table SET TBLPROPERTIES('EXTERNAL'='TRUE')
+ALTER TABLE test_table SET TBLPROPERTIES('EXTERNAL'='TRUE');
 ```
 
 外->内
 
 ```hive
-ALTER TABLE test_table SET TBLPROPERTIES('EXTERNAL'='FALSE')
+ALTER TABLE test_table SET TBLPROPERTIES('EXTERNAL'='FALSE');
 ```
 
 注意括号内的参数和值是大小写敏感的，必须全部使用大写
+
+## 5.3 Hive数据的数据加载
+
+Hive的LOAD DATA命令默认是移动文件，而不是追加内容
+
+### 5.3.1 导入
+
+#### LOAD DATA
+
+```hive
+-- 基本语法
+LOAD DATA [LOCAL] INPATH '路径/文件' 
+[OVERWRITE] INTO TABLE 表名 
+[PARTITION (分区字段='值')];
+```
+
+1、从本地加载
+
+准备一个`test_load_local.txt`文件
+
+```bash
+vim test_load_local.txt
+```
+
+```text
+11      name_local1
+22      name_local2
+33      name_local3
+```
+
+创建测试表并将本地文件上传到表中
+
+```hive
+-- 创建测试表
+CREATE TABLE test_load(
+	id INT,
+    name STRING
+)
+ROW FORMAT DELIMITED FIELDS TERMINATED BY '\t' ;
+
+-- 测试导入数据
+LOAD DATA LOCAL INPATH '/home/hadoop/test_load_local.txt'
+INTO TABLE myhive.test_load;
+
+SELECT * FROM test_load;
+```
+
+| id   | name        |
+| ---- | ----------- |
+| 11   | name_local1 |
+| 22   | name_local2 |
+| 33   | name_local3 |
+
+2、从HDFS加载
+
+把之前的`test_load_hdfs.txt`文件上传到HDFS中
+
+```bash
+[hadoop@node1 ~]$ hdfs dfs -put test_load_local.txt /data/input/test_load_hdfs.txt
+[hadoop@node1 ~]$ hdfs dfs -ls /data/input/
+Found 2 items
+-rw-r--r--   3 hadoop supergroup         25 2026-04-27 18:11 /data/input/test_external.txt
+-rw-r--r--   3 hadoop supergroup         45 2026-04-27 20:27 /data/input/test_load_hdfs.txt
+```
+
+
+
+```hive
+-- 测试导入数据
+LOAD DATA INPATH '/data/input/test_load_hdfs.txt'
+LOAD DATA LOCAL INPATH myhive.test_load;
+
+SELECT * FROM test_load;
+```
+
+导入后会直接将hdfs中数据追加到表中，但是里如果使用了 `OVERWRITE` 就会直接覆盖
+
+| id   | name        |
+| ---- | ----------- |
+| 11   | name_local1 |
+| 22   | name_local2 |
+| 33   | name_local3 |
+| 11   | name_local1 |
+| 22   | name_local2 |
+| 33   | name_local3 |
+
+**需要注意的是使用hdfs导入数据时，实际上就是将hdfs文件移动到hive表的存储目录，hdfs中的源文件会消失**
+
+**通过命令可以看到两次插入都是将文件移动到Hive表的目录中**
+
+```bash
+[hadoop@node1 ~]$ hdfs dfs -ls /user/hive/warehouse/myhive.db/test_load
+Found 2 items
+-rw-r--r--   3 hadoop supergroup         45 2026-04-27 20:27 /user/hive/warehouse/myhive.db/test_load/test_load_hdfs.txt
+-rw-r--r--   3 hadoop supergroup         45 2026-04-27 20:15 /user/hive/warehouse/myhive.db/test_load/test_load_local.txt
+```
+
+#### INSERT SELECT
+
+将查询结果追加到当前表
+
+```hive
+-- 基本语法
+INSERT [OVERWRITE | INTO] TABLE 表名 
+[PARTITION (分区字段='值')
+	[IF NOT EXISTS]
+ 	select_statement1 FROM from_statement
+];
+```
+
+创建一个新表
+
+```hive
+CREATE TABLE test_load2(
+	id INT,
+    name STRING
+);
+
+INSERT INTO test_load2 
+SELECT * FROM test_load ORDER BY id ASC LIMIT 3;
+
+select * from test_load2;
+```
+
+效果如下
+
+| id   | name        |
+| ---- | ----------- |
+| 11   | name_local1 |
+| 11   | name_local1 |
+| 22   | name_local2 |
+
+### 5.3.2 导出
+
+#### INSERT OVERWRITE
+
+将select的结果写入到导出的路径中（带local就是导入到Linux，不带local就是导入HDFS）
+
+```hive
+-- 基本语法
+INSERT OVERWRITE [LOCAL] DIRECTORY '路径' 
+ROW FORMAT DELIMITED FIELDS TERMINATED BY '\t'
+select_statement1 FROM from_statement;
+```
+
+1、测试导出到本地
+
+将`test_load2`结果导出到Linux本地
+
+```hive
+INSERT OVERWRITE LOCAL DIRECTORY '/home/hadoop/export_test_load2'
+ROW FORMAT DELIMITED FIELDS TERMINATED BY '\t'
+SELECT * FROM test_load2;
+```
+
+效果
+
+```bash
+hadoop@node1 ~]$ cd export_test_load2
+[hadoop@node1 export_test_load2]$ ll
+total 4
+-rw-r--r-- 1 hadoop hadoop 45 Apr 27 21:09 000000_0
+[hadoop@node1 export_test_load2]$ cat 000000_0
+11	name_local1
+11	name_local1
+22	name_local2
+```
+
+2、测试导出到hdfs
+
+先确定一个导出位置（创建了一个output文件夹）
+
+```bash
+[hadoop@node1 export_test_load2]$ hdfs dfs -mkdir /data/output/
+[hadoop@node1 export_test_load2]$ hdfs dfs -ls /data/
+Found 3 items
+drwxr-xr-x   - hadoop supergroup          0 2026-04-27 20:27 /data/input
+drwxrwx---   - hadoop supergroup          0 2026-04-02 21:17 /data/mr-history
+drwxr-xr-x   - hadoop supergroup          0 2026-04-27 21:12 /data/output
+```
+
+导出
+
+```hive
+INSERT OVERWRITE DIRECTORY '/data/output/export_test_load2'
+ROW FORMAT DELIMITED FIELDS TERMINATED BY '\t'
+SELECT * FROM test_load2;
+```
+
+效果：
+
+```bash
+[hadoop@node1 export_test_load2]$ hdfs dfs -ls /data/output/export_test_load2
+Found 1 items
+-rw-r--r--   3 hadoop supergroup         45 2026-04-27 21:15 /data/output/export_test_load2/000000_0
+[hadoop@node1 export_test_load2]$ hdfs dfs -cat /data/output/export_test_load2/000000_0
+11	name_local1
+11	name_local1
+22	name_local2
+
+```
+
+#### hive shell
+
+1、通过`bin/hive -e`执行sql语句，并将结果作为输入传递到目标文件中
+
+```bash
+mkdir -p /home/hadoop/export_tables && bin/hive -e "select * from myhive.test_load2;" > /home/hadoop/export_tables/export_test_load2.txt
+```
+
+效果
+
+```bash
+[hadoop@node1 hive]$ mkdir -p /home/hadoop/export_tables && bin/hive -e "select * from myhive.test_load2;" > /home/hadoop/export_tables/export_test_load2.txt
+which: no hbase in (/usr/local/bin:/bin:/usr/bin:/usr/local/sbin:/usr/sbin:/export/server/jdk/bin:/export/server/hadoop/bin:/export/server/hadoop/sbin:/export/server/hive/bin:/home/hadoop/.local/bin:/home/hadoop/bin)
+Hive Session ID = 150406e4-68ad-4ea2-a366-7ac4c729912f
+
+Logging initialized using configuration in file:/export/server/apache-hive-3.1.3-bin/conf/hive-log4j2.properties Async: true
+Hive Session ID = 0e94c55f-cc49-447a-ae33-2445fafdc327
+OK
+Time taken: 1.106 seconds, Fetched: 3 row(s)
+[hadoop@node1 hive]$ cat /home/hadoop/export_tables/export_test_load2.txt
+0    [main] WARN  org.apache.hadoop.hive.conf.HiveConf  - HiveConf of name hive.root.logger does not exist
+459  [main] WARN  org.apache.hadoop.hive.conf.HiveConf  - HiveConf of name hive.root.logger does not exist
+926  [150406e4-68ad-4ea2-a366-7ac4c729912f main] WARN  org.apache.hadoop.hive.conf.HiveConf  - HiveConf of name hive.root.logger does not exist
+1602 [150406e4-68ad-4ea2-a366-7ac4c729912f main] WARN  org.apache.hadoop.hive.ql.session.SessionState  - METASTORE_FILTER_HOOK will be ignored, since hive.security.authorization.manager is set to instance of HiveAuthorizerFactory.
+11	name_local1
+11	name_local1
+22	name_local2
+```
+
+2、通过`bin/hive -f`执行存储sql语句的文件，并将结果作为输入传递到目标文件中
+
+创建一个.sql文件存储 `select * from myhive.test_load2;`
+
+```bash
+vim export_test_load2.sql
+```
+
+输入
+
+```mysql
+select * from myhive.test_load2
+```
+
+执行
+
+```bash
+bin/hive -f export_test_load2.sql > /home/hadoop/export_tables/export_test_load2_next.txt
+```
+
+效果
+
+```bash
+[hadoop@node1 hive]$ cat /home/hadoop/export_tables/export_test_load2_next.txt
+0    [main] WARN  org.apache.hadoop.hive.conf.HiveConf  - HiveConf of name hive.root.logger does not exist
+337  [main] WARN  org.apache.hadoop.hive.conf.HiveConf  - HiveConf of name hive.root.logger does not exist
+767  [8fe3b6aa-3795-4b2d-8462-034660cf0f3f main] WARN  org.apache.hadoop.hive.conf.HiveConf  - HiveConf of name hive.root.logger does not exist
+1363 [8fe3b6aa-3795-4b2d-8462-034660cf0f3f main] WARN  org.apache.hadoop.hive.ql.session.SessionState  - METASTORE_FILTER_HOOK will be ignored, since hive.security.authorization.manager is set to instance of HiveAuthorizerFactory.
+11	name_local1
+11	name_local1
+22	name_local2
+```
+
+## 5.4 Hive 分区表
+
+把大数据按照每天/小时切分成一个个小文件，通过文件夹对彼此进行隔离，这样查询某分区时就不需要对全表进行搜索
+
+![image-20260427213931156](./assets/image-20260427213931156.png)
+
+```hive
+CREATE TABLE 表名(字段...) 
+PARTITIONED BY (分区列 列类型,...)
+ROW FORMAT DELIMITED FIELDS TERMINATED BY '';
+```
+

@@ -641,3 +641,216 @@ PARTITIONED BY (分区列 列类型,...)
 ROW FORMAT DELIMITED FIELDS TERMINATED BY '';
 ```
 
+#### 5.4.1 单分区
+
+```hive
+-- 创建一个单分区表，按照月分区
+CREATE TABLE  myhive.score(id STRING,classId STRING, score DOUBLE)
+PARTITIONED BY (month STRING)
+ROW FORMAT DELIMITED FIELDS TERMINATED BY '\t';
+
+INSERT OVERWRITE TABLE score PARTITION (month='202401')
+VALUES
+    ('S001', 'C101', 89.5),
+    ('S002', 'C101', 92.0),
+    ('S003', 'C101', 78.5),
+    ('S004', 'C102', 85.0),
+    ('S005', 'C102', 91.5),
+    ('S006', 'C102', 76.0),
+    ('S007', 'C103', 88.0),
+    ('S008', 'C103', 94.5),
+    ('S009', 'C103', 82.0),
+    ('S010', 'C103', 90.0);
+    
+SELECT * FROM score;
+```
+
+插入后查询结果如下，month会被单独分一个列
+
+| id   | classid | score | month  |
+| ---- | ------- | ----- | ------ |
+| S001 | C101    | 89.5  | 202401 |
+| S002 | C101    | 92    | 202401 |
+| S003 | C101    | 78.5  | 202401 |
+| S004 | C102    | 85    | 202401 |
+| S005 | C102    | 91.5  | 202401 |
+| S006 | C102    | 76    | 202401 |
+| S007 | C103    | 88    | 202401 |
+| S008 | C103    | 94.5  | 202401 |
+| S009 | C103    | 82    | 202401 |
+| S010 | C103    | 90    | 202401 |
+
+可以看到在HDFS中已经存在一个表的分区，month=202401（文件夹）
+
+```bash
+[hadoop@node1 hive]$ hdfs dfs -ls /user/hive/warehouse/myhive.db
+Found 4 items
+drwxr-xr-x   - hadoop supergroup          0 2026-04-27 21:46 /user/hive/warehouse/myhive.db/score
+drwxr-xr-x   - hadoop supergroup          0 2026-04-27 20:27 /user/hive/warehouse/myhive.db/test_load
+drwxr-xr-x   - hadoop supergroup          0 2026-04-27 21:00 /user/hive/warehouse/myhive.db/test_load2
+drwxr-xr-x   - hadoop supergroup          0 2026-04-27 14:48 /user/hive/warehouse/myhive.db/test_table
+[hadoop@node1 ~]$ hdfs dfs -ls /user/hive/warehouse/myhive.db/score/
+Found 1 items
+drwxr-xr-x   - hadoop supergroup          0 2026-04-27 21:56 /user/hive/warehouse/myhive.db/score/month=202401
+```
+
+#### 5.4.2 多分区
+
+插入时分区信息缺一不可
+
+```hive
+-- 创建一个多分区表，按照月分区
+CREATE TABLE  myhive.score_multi_partition(id STRING,classId STRING, score DOUBLE)
+PARTITIONED BY (year STRING, month STRING, day STRING)
+ROW FORMAT DELIMITED FIELDS TERMINATED BY '\t';
+
+INSERT OVERWRITE TABLE myhive.score_multi_partition PARTITION (year='2025', month='01', day='01')
+VALUES
+    ('S001', 'C101', 89.5),
+    ('S002', 'C101', 92.0),
+    ('S003', 'C101', 78.5),
+    ('S004', 'C102', 85.0),
+    ('S005', 'C102', 91.5),
+    ('S006', 'C102', 76.0),
+    ('S007', 'C103', 88.0),
+    ('S008', 'C103', 94.5),
+    ('S009', 'C103', 82.0),
+    ('S010', 'C103', 90.0);
+    
+INSERT OVERWRITE TABLE myhive.score_multi_partition PARTITION (year='2025', month='01', day='02')
+VALUES
+    ('S001', 'C101', 89.5),
+    ('S002', 'C101', 92.0),
+    ('S003', 'C101', 78.5),
+    ('S004', 'C102', 85.0),
+    ('S005', 'C102', 91.5),
+    ('S006', 'C102', 76.0),
+    ('S007', 'C103', 88.0),
+    ('S008', 'C103', 94.5),
+    ('S009', 'C103', 82.0),
+    ('S010', 'C103', 90.0);
+    
+SELECT * FROM myhive.score_multi_partition;
+```
+
+通过hdfs文件的查看，可以发现表按照 年/月/日 文件夹的形式进行存储
+
+```bash
+[hadoop@node1 ~]$ hdfs dfs -ls /user/hive/warehouse/myhive.db/score_multi_partition/year=2025/month=01/
+Found 2 items
+drwxr-xr-x   - hadoop supergroup          0 2026-04-28 09:27 /user/hive/warehouse/myhive.db/score_multi_partition/year=2025/month=01/day=01
+drwxr-xr-x   - hadoop supergroup          0 2026-04-28 09:29 /user/hive/warehouse/myhive.db/score_multi_partition/year=2025/month=01/day=02
+```
+
+#### 5.4.3 删除
+
+清空某分区
+
+```hive
+ALTER TABLE myhive.score_multi_partition 
+DROP PARTITION (dt='2024-01-01');
+```
+
+清空所有分区
+
+```hive
+TRUNCATE TABLE myhive.score_multi_partition;
+```
+
+删除表
+
+```hive
+DROP TABLE IF EXISTS myhive.course;
+```
+
+## 5.5 分桶表
+
+分桶和分区一样都是通过改变表的存储模式，完成对表优化的一种调优方式。
+
+**分桶原理**：分桶表会根据指定列计算Hash值，将数据**均匀分发**到固定数量的桶文件中
+
+分区是将表拆到`不同的子文件夹`中进行存储，分桶是将表拆分到`固定数量的不同文件`中进行存储
+
+![image-20260428093535804](./assets/image-20260428093535804.png)
+
+
+
+```hive
+-- 开启分桶的优化机制（自动将reduce task数量和桶数量一致）
+set hive.enforce.bucketing=true;
+-- 创建分桶表
+CREATE TABLE  myhive.course(c_id STRING,c_name STRING, t_id STRING)
+CLUSTERED BY (c_id) INTO 3 BUCKETS -- 这里注意一下是 CLUSTERED BY
+ROW FORMAT DELIMITED FIELDS TERMINATED BY '\t';  Y
+```
+
+桶表的数据加载只能使用`INSERT SELECT`，无法使用LOAD DATA/INSERT ... VALUES，因为**Hive执行机制**：只有`INSERT SELECT`能触发MapReduce/Spark任务，在计算过程中完成：
+
+- Hash值计算
+- 按桶数取模
+- 数据写入对应桶文件
+
+#### 5.5.1 分桶表的插入
+
+```hive
+CREATE TABLE  myhive.course_source(c_id STRING,c_name STRING, t_id STRING)
+ROW FORMAT DELIMITED FIELDS TERMINATED BY '\t';
+
+INSERT OVERWRITE TABLE myhive.course_source
+VALUES
+    ('C001', 'CName1', 'Teacher001'),
+    ('C002', 'CName2', 'Teacher001'),
+    ('C003', 'CName3', 'Teacher002'),
+    ('C004', 'CName4', 'Teacher003');
+    
+    
+INSERT OVERWRITE TABLE myhive.course
+SELECT * FROM course_source CLUSTER BY(c_id); -- 这里注意一下是 CLUSTER BY
+```
+
+查看一下正好是三个文件
+
+```bash
+[hadoop@node1 ~]$ hdfs dfs -ls /user/hive/warehouse/myhive.db/course/
+Found 3 items
+-rw-r--r--   3 hadoop supergroup         19 2026-04-28 10:09 /user/hive/warehouse/myhive.db/course/000000_0
+-rw-r--r--   3 hadoop supergroup         19 2026-04-28 10:09 /user/hive/warehouse/myhive.db/course/000001_0
+-rw-r--r--   3 hadoop supergroup         38 2026-04-28 10:09 /user/hive/warehouse/myhive.db/course/000002_0
+```
+
+#### 5.5.2 分桶表的Hash取模
+
+将数据按照桶数进行划分时，份数的划分是基于 `分桶列的值进行hash取模` 来决定的
+
+- 数据输入 → 计算Hash值 → 取模 → 分配到Reducer → 写入对应桶文件
+
+  ```hive
+  -- 查看每个数据所在的桶
+  SELECT 
+      c_id,
+      c_name,
+      HASH(c_id) as hash_value,  -- 计算Hash值
+      ABS(HASH(c_id)) as abs_hash,  -- 取绝对值
+      ABS(HASH(c_id)) % 3 as bucket_number,  -- 计算桶号
+      INPUT__FILE__NAME as file_path  -- 查看实际文件
+  FROM course
+  ORDER BY c_id;
+  ```
+
+  | c_id | c_name | hash_value | abs_hash  | bucket_number | file_path                                                    |
+  | ---- | ------ | ---------- | --------- | ------------- | ------------------------------------------------------------ |
+  | C001 | CName1 | 2,043,662  | 2,043,662 | 2             | hdfs://node1:8020/user/hive/warehouse/myhive.db/course/000002_0 |
+  | C002 | CName2 | 2,043,663  | 2,043,663 | 0             | hdfs://node1:8020/user/hive/warehouse/myhive.db/course/000000_0 |
+  | C003 | CName3 | 2,043,664  | 2,043,664 | 1             | hdfs://node1:8020/user/hive/warehouse/myhive.db/course/000001_0 |
+  | C004 | CName4 | 2,043,665  | 2,043,665 | 2             | hdfs://node1:8020/user/hive/warehouse/myhive.db/course/000002_0 |
+  | C004 | CName4 | 2,043,665  | 2,043,665 | 2             | hdfs://node1:8020/user/hive/warehouse/myhive.db/course/000002_0 |
+
+当分桶字段值集中时，会导致数据倾斜
+
+由于load data不会触发MapReduce，也就是没有计算过程（无法执行Hash算法），只是简单的移动数据，所以无法用于分桶表数据插入
+
+#### 5.5.3 为什么分桶表可以性能提升
+
+基于分桶表的特定操作，如过滤、JOIN、分组（分桶表相当于自动分组） 均可带来性能提升
+
+## 5.6 修改表
